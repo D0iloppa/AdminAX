@@ -15,6 +15,10 @@
 # [중요] proxy 폴더 내의 Nginx 설정 파일은 반드시 관리되어야 함
 !/proxy/*.conf
 
+
+# SVN 관련 일
+.svn/
+
 # --- Gradle & Java (Spring Boot) ---
 .gradle/
 build/
