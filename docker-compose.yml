@@ -1,6 +1,7 @@
-version: '3.8'
+# 'version' 속성은 최신 Compose에서 권장되지 않으므로 제거했습니다. [cite: 2, 2026-02-03]
 
 services:
+  # 1. Database (Metadata)
   db:
     image: postgres:15-alpine
     container_name: adminax-db
@@ -16,12 +17,13 @@ services:
       resources:
         limits:
           memory: 512M
-    logging:
+    logging: &default-logging
       driver: "json-file"
       options:
         max-size: "${LOG_MAX_SIZE}"
         max-file: "${LOG_MAX_FILE}"
 
+  # 2. Search Engine (Vector DB)
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
     container_name: adminax-es
@@ -37,12 +39,9 @@ services:
       resources:
         limits:
           memory: ${ES_MEM_LIMIT}
-    logging: &default-logging
-      driver: "json-file"
-      options:
-        max-size: "${LOG_MAX_SIZE}"
-        max-file: "${LOG_MAX_FILE}"
+    logging: *default-logging
 
+  # 3. Message Broker (Redis Streams)
   redis:
     image: redis:7-alpine
     container_name: adminax-redis
@@ -55,8 +54,12 @@ services:
           memory: 256M
     logging: *default-logging
 
+  # 4. Core Engine (Spring Boot - Java 21)
+  # 외부 이미지를 사용하지 않고 ./engine 폴더의 소스를 빌드합니다. [cite: 2026-02-03]
   core-engine:
-    image: openjdk:17-jdk-slim
+    build:
+      context: ./engine
+      dockerfile: Dockerfile # ./engine/Dockerfile 경로
     container_name: adminax-core
     restart: unless-stopped
     environment:
@@ -65,12 +68,17 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${DB_NAME}
       - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
       - SPRING_REDIS_HOST=redis
+    depends_on:
+      - db
+      - elasticsearch
+      - redis
     deploy:
       resources:
         limits:
           memory: ${CORE_MEM_LIMIT}
     logging: *default-logging
 
+  # 5. API Gateway (Nginx)
   gateway:
     image: nginx:stable-alpine
     container_name: adminax-gateway
