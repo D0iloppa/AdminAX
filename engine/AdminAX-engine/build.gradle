@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.adminax'
+version = '0.0.1-SNAPSHOT'
+description = 'AI-powered Backend Engine for AdminAX: Bridging Enterprise Legacy Systems and Modern AI through Intelligent Document Analysis.'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+    // Spring AI 마일스톤/스냅샷 버전 사용 시 필요한 저장소
+    maven { url 'https://repo.spring.io/milestone' }
+}
+
+// 1. Spring AI의 버전을 일관되게 관리하기 위한 BOM 설정
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:1.0.0-M5" // 2026년 기준 최신 마일스톤
+    }
+}
+
+dependencies {
+    // --- Core Framework ---
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-web' // webmvc 포함
+    
+    // --- Spring AI (추상화 인터페이스만 추가) ---
+    // 특정 모델(OpenAI 등) 대신 핵심 인터페이스만 참조합니다.
+    implementation 'org.springframework.ai:spring-ai-core'
+    
+    // --- Utilities ---
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'org.postgresql:postgresql'
+    annotationProcessor 'org.projectlombok:lombok'
+    
+    // --- Test ---
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
