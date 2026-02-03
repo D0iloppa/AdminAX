@@ -39,6 +39,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-web' // webmvc 포함
     
+    implementation 'kr.dogfoot:hwplib:1.1.0'
+    implementation 'org.apache.tika:tika-core:2.9.1'
+	implementation 'org.apache.tika:tika-parsers-standard-package:2.9.1'
+    
     
     // --- Persistence (MyBatis) ---
     // 엔터프라이즈 레거시 시스템의 복잡한 쿼리 처리를 위해 추가

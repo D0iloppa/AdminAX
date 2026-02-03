@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AdminAX | 문서 정규화 테스트</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="norm.js" defer></script>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">🛡️ AdminAX 문서 정규화 엔진 테스트</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">파일을 선택하고 전송 버튼을 누르면 정규화 처리가 시작됩니다.</p>
+                
+                <div class="mb-3">
+                    <label for="fileInput" class="form-label">문서 선택 (N개 가능)</label>
+                    <input class="form-control" type="file" id="fileInput" multiple>
+                </div>
+                
+                <button class="btn btn-primary w-100" onclick="uploadFiles()">🚀 정규화 시작</button>
+            </div>
+            <div class="card-footer">
+                <h6>처리 결과:</h6>
+                <pre id="output" class="bg-dark text-success p-3 rounded" style="min-height: 100px;">대기 중...</pre>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
