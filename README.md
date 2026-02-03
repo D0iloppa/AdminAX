@@ -74,6 +74,12 @@ docker stats
 
 # DB 접속 (DBeaver)
 # SSH 터널링: 121.136.244.39:13922 이용
+
+ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -p ${ssh_port} ${ssh_user}@${ssh_host}
+
+#ex
+ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -p 13922 wellconn@121.136.244.39 
+
 ```
 
 ---
