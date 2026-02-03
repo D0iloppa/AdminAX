@@ -65,6 +65,8 @@ services:
     environment:
       - TZ=${TZ:-Asia/Seoul}
       - JAVA_OPTS=${JAVA_OPTS}
+      - SPRING_DATASOURCE_USERNAME=${DB_USER}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${DB_NAME}
       - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
       - SPRING_REDIS_HOST=redis
