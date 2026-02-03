@@ -1,34 +1,36 @@
-# --- Data & Databases ---
-# DB와 검색엔진의 실제 데이터는 제외 (용량 및 보안)
-/data/**/*
-!**/ .gitkeep
+# --- Infrastructure Structures ---
+# data, logs, proxy 폴더의 구조는 유지하되 데이터/로그는 제외
+/data/**
+/logs/**
+/proxy/**
 
-# --- Java (Spring Boot) ---
-# 빌드 결과물 및 컴파일된 클래스 파일 제외
-**/target/
+# 폴더 자체는 추적 대상에 포함
+!/data/
+!/logs/
+!/proxy/
+
+# 구조 유지를 위한 .gitkeep 파일은 예외적으로 허용
+!**/.gitkeep
+
+# [중요] proxy 폴더 내의 Nginx 설정 파일은 반드시 관리되어야 함
+!/proxy/*.conf
+
+# --- Gradle & Java (Spring Boot) ---
+.gradle/
+build/
+bin/
+out/
+**/build/
 *.class
 *.jar
-*.war
-*.ear
 
-# --- Logs ---
-# 서버 가동 중 발생하는 로그 파일 제외
-*.log
-/logs/
-
-# --- IDE Settings ---
-# VS Code 및 IntelliJ, Eclipse 설정 파일 제외
+# --- IDE & OS ---
 .vscode/
 .idea/
 *.iml
 .project
-.classpath
-.settings/
-
-# --- OS Files ---
 .DS_Store
 Thumbs.db
 
 # --- Environment Variables ---
-# 비밀번호나 API 키가 포함된 환경 변수 파일 제외
 .env
