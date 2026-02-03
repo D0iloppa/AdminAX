@@ -51,12 +51,12 @@ sudo systemctl enable --now docker
 
 ```bash
 /app/adminAX/
-├── README.md                # 프로젝트 문서
-├── docker-compose.yml       # 통합 컨테이너 오케스트레이션
-├── proxy/                   # Nginx 설정 (Gateway & Routing)
-├── engine/                  # Core Engine (Spring Boot)
-├── presentation/            # UI (Chat & Admin Console)
-└── data/                    # DB 및 인덱스 데이터 (Git Ignore)
+├── proxy/           # Nginx 설정 파일 (nginx.conf 등)
+├── engine/          # 백엔드(Spring Boot) 소스 및 설정
+├── presentation/    # 프론트엔드(UI) 소스 및 빌드 파일
+└── data/            # 컨테이너 데이터 영속성 유지용 (DB 데이터 등)
+    ├── postgres/    # PostgreSQL 실제 데이터 저장소
+    └── elasticsearch/ # Elasticsearch 인덱스 데이터 저장소
 ```
 
 ---
