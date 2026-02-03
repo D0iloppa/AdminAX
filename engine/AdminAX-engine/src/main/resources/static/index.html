@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AdminAX Engine | Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; line-height: 1.6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f7f6; }
+        .container { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; width: 400px; }
+        h1 { color: #2c3e50; margin-bottom: 0.5rem; }
+        .status { color: #27ae60; font-weight: bold; margin-bottom: 2rem; }
+        .btn { display: inline-block; padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; transition: background 0.3s; }
+        .btn:hover { background: #2980b9; }
+        .footer { margin-top: 2rem; font-size: 0.8rem; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ AdminAX Engine</h1>
+        <p class="status">● System Running (Local)</p>
+        <hr>
+        <p>AI-powered Knowledge Management Platform Backend</p>
+        <p><a href="/swagger-ui/index.html" class="btn">Swagger API 명세서 확인</a></p>
+        <div class="footer">
+            Build Version: 0.0.1-SNAPSHOT<br>
+            Connected to: Postgres / Redis (Tunneled)
+        </div>
+    </div>
+</body>
+</html>
