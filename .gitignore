@@ -29,6 +29,9 @@ out/
 *.jar
 
 # --- IDE & OS ---
+.settings/
+.project
+.classpath
 .vscode/
 .idea/
 *.iml
