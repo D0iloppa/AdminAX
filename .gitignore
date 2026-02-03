@@ -1,6 +1,7 @@
 # --- Data & Databases ---
 # DB와 검색엔진의 실제 데이터는 제외 (용량 및 보안)
-/data/
+/data/**/*
+!**/ .gitkeep
 
 # --- Java (Spring Boot) ---
 # 빌드 결과물 및 컴파일된 클래스 파일 제외
