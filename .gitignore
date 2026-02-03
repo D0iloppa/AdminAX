@@ -1,0 +1,33 @@
+# --- Data & Databases ---
+# DB와 검색엔진의 실제 데이터는 제외 (용량 및 보안)
+/data/
+
+# --- Java (Spring Boot) ---
+# 빌드 결과물 및 컴파일된 클래스 파일 제외
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# --- Logs ---
+# 서버 가동 중 발생하는 로그 파일 제외
+*.log
+/logs/
+
+# --- IDE Settings ---
+# VS Code 및 IntelliJ, Eclipse 설정 파일 제외
+.vscode/
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+
+# --- Environment Variables ---
+# 비밀번호나 API 키가 포함된 환경 변수 파일 제외
+.env
