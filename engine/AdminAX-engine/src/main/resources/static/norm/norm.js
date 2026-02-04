@@ -22,7 +22,7 @@ async function uploadFiles() {
         output.innerText = "서버 전송 중...";
         
         // API 호출 (Context Path /api 반영) [cite: 2026-02-03]
-        const response = await fetch('/norm/normDocs', {
+        const response = await fetch('normDocs', {
             method: 'POST',
             body: formData
         });
