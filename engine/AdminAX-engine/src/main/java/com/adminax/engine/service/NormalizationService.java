@@ -76,17 +76,27 @@ public class NormalizationService {
 	    }
 
 	    try {
-	        // 1. 임시 파일 대신 '공유 폴더'에 직접 저장 [cite: 2026-02-04]
-	        // 파일명 충복 방지를 위해 UUID를 접두어로 사용합니다.
-	        String docUuid = UUID.randomUUID().toString();
-	        String savedFileName = docUuid + "_" + multipartFile.getOriginalFilename();
+	    	
+	    	String docUuid = UUID.randomUUID().toString();
+	        String originalFilename = multipartFile.getOriginalFilename();
+	        
+	        // 1. 원본 파일명에서 확장자 추출 (.hwp, .pdf 등)
+	        String extension = "";
+	        if (originalFilename != null && originalFilename.contains(".")) {
+	            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+	        }
+
+	        // 2. 물리적 저장은 [UUID].[확장자] 형태로 (특수문자/공백 문제 원천 차단)
+	        String savedFileName = docUuid + extension;
 	        File targetFile = new File(sharedPath, savedFileName);
 
-	        // 멀티파트 데이터를 공유 폴더로 복사 [cite: 2026-02-04]
 	        multipartFile.transferTo(targetFile);
+	        
+	        log.info("[*] 물리 파일 저장 완료: {} (원본명: {})", 
+	                targetFile.getAbsolutePath(), originalFilename);
 
 	        // 2. 비동기 처리 메서드 호출 (UUID를 넘겨서 일관성 유지)
-	        return normalize(targetFile, docUuid);
+	        return normalize(targetFile, originalFilename, docUuid);
 
 	    } catch (IOException e) {
 	        log.error("파일 저장 중 오류 발생: {}", e.getMessage());
@@ -96,7 +106,7 @@ public class NormalizationService {
 	    
 	}
 	
-	private NormCtxt normalize(File file, String docUuid) {
+	private NormCtxt normalize(File file, String orgName, String docUuid) {
 	    log.info("[*] 비동기 정규화 요청 시작 - 파일: {}, UUID: {}", file.getName(), docUuid);
 
 	    try {
