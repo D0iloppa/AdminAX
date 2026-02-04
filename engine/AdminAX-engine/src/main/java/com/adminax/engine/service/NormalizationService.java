@@ -7,7 +7,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.stream.StreamRecords;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,8 +31,20 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class NormalizationService {
 	
+	// 1. 상단에 선언된 의존성들
+    private final RedisTemplate<String, String> redisTemplate;
+  
+
+    // 컨테이너 내부의 공유 볼륨 경로
+    @Value("${adminax.path.shared-docs}")
+    private String sharedPath;
+
+    @Value("${adminax.redis.convert-stream-key}")
+    private String convertStreamKey;
+	
 	
 	private final DocParser docParser;
+	// private final DocMapper docMapper; // MyBatis 매퍼 (준비되면 주입)
 	
 	/**
 	 * 1. 메소드명 : processDocuments
@@ -58,34 +75,65 @@ public class NormalizationService {
 	        return null; 
 	    }
 
-	    File tempFile = null;
 	    try {
-	        // 임시 파일 생성 (prefix: adminax_, suffix: 원본파일명)
-	        Path tempPath = Files.createTempFile("adminax_", "_" + multipartFile.getOriginalFilename());
-	        tempFile = tempPath.toFile();
+	        // 1. 임시 파일 대신 '공유 폴더'에 직접 저장 [cite: 2026-02-04]
+	        // 파일명 충복 방지를 위해 UUID를 접두어로 사용합니다.
+	        String docUuid = UUID.randomUUID().toString();
+	        String savedFileName = docUuid + "_" + multipartFile.getOriginalFilename();
+	        File targetFile = new File(sharedPath, savedFileName);
 
-	        // 멀티파트 데이터를 임시 파일로 복사
-	        multipartFile.transferTo(tempFile);
+	        // 멀티파트 데이터를 공유 폴더로 복사 [cite: 2026-02-04]
+	        multipartFile.transferTo(targetFile);
 
-	        // 2. 실제 File 객체를 처리하는 메서드 호출
-	        NormCtxt result = normalize(tempFile);
-
-	        return result;
+	        // 2. 비동기 처리 메서드 호출 (UUID를 넘겨서 일관성 유지)
+	        return normalize(targetFile, docUuid);
 
 	    } catch (IOException e) {
-	        log.error("파일 변환 및 정규화 중 오류 발생: {}", e.getMessage());
+	        log.error("파일 저장 중 오류 발생: {}", e.getMessage());
 	        return null;
-	    } finally {
-	        // 처리 후 임시 파일 삭제 (디스크 용량 관리)
-	        if (tempFile != null && tempFile.exists()) {
-	            tempFile.delete();
-	        }
+	    }
+	    
+	    
+	}
+	
+	private NormCtxt normalize(File file, String docUuid) {
+	    log.info("[*] 비동기 정규화 요청 시작 - 파일: {}, UUID: {}", file.getName(), docUuid);
+
+	    try {
+	    	
+	        // Redis로 보낼 메시지 구성 (Payload)
+	    	
+	        Map<String, String> payload = Map.of(
+	            "file_path", file.getAbsolutePath(), // 공유 볼륨 내의 절대 경로
+	            "doc_uuid", docUuid,
+	            "filename", file.getName()
+	        );
+
+	        // Redis Stream에 메시지 추가 (XADD)
+	        redisTemplate.opsForStream().add(
+                StreamRecords.newRecord()
+                    .in(convertStreamKey)
+                    .ofMap(payload)
+            );
+
+	        // 4. (권장) DB에 초기 상태 저장 로직이 올 자리
+	        // docMapper.insertInitialStatus(docUuid, file.getName(), "READY");
+	        
+	        NormCtxt result = new NormCtxt();
+	        result.setDoc_uuid(docUuid);
+	        
+
+	        return result; // 결과 대신 추적용 UUID 반환
+
+	    } catch (Exception e) {
+	        log.error("[!] Redis 메시지 발행 중 에러 발생: {}", file.getName(), e);
+	        throw new RuntimeException("정규화 요청 실패", e);
 	    }
 	}
 	
 	
 	
-	private NormCtxt normalize(File file) {
+	private NormCtxt normalize_org(File file) {
 		
 	    log.info("파일 기반 정규화 수행 중: {}", file.getName());
 	    
