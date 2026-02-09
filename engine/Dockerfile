@@ -19,4 +19,4 @@ WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 
 # 4GB 램 환경을 고려한 JVM 옵션 최적화
-ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

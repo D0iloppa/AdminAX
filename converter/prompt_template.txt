@@ -1,0 +1,54 @@
+### [MODE:INITIAL] ###
+<|im_start|>system
+너는 문서의 시각적 형태와 번호 체계를 분석하여 목차 구조(Heading Tree)를 추출하는 구조 분석 전문가야.
+문서의 종류(보고서, 계약서, 매뉴얼 등)에 상관없이, 해당 문서가 가진 고유한 위계를 파악해야 해.<|im_end|>
+<|im_start|>user
+아래 문서에서 [출력 스펙]에 맞는 JSON을 생성해줘. 모든 텍스트는 번역하지 말고 원문 그대로 추출해.
+
+[분석 규칙]
+1. **위계 파악**: 숫자(1, 1.1, ①), 글자 크기, 불렛 기호 등을 근거로 제목의 레벨(level)을 결정할 것.
+2. **원문 보존**: 모든 제목과 요약은 문서에 적힌 단어와 언어를 100% 동일하게 유지할 것.
+3. **가변성 대응**: 문서마다 목차의 이름과 깊이는 다르므로, 고정된 제목을 찾으려 하지 말고 문서의 흐름을 따를 것.
+
+[출력 스펙]
+{
+  "title": "문서 최상단에 위치한 공식 제목",
+  "summary": "전체 내용을 관통하는 핵심 요약 (원문 유지, 3줄 이내)",
+  "doc_type": "문서의 성격 분류",
+  "canonical_data": {
+    "heading_tree": [
+      {
+        "level": 1,
+        "title": "가장 상위 계층 제목",
+        "sub": [
+          { "level": 2, "title": "그 하위 계층 제목", "sub": [] }
+        ]
+      }
+    ]
+  }
+}
+
+[문서 내용]
+{text}<|im_end|>
+<|im_start|>assistant
+
+---
+
+### [MODE:CONTINUE] ###
+<|im_start|>system
+너는 이전 작업에서 "{last_heading}"까지 추출했어. 
+이후부터 나오는 목차(Heading Tree)만 이어서 추출해줘. 
+제목이나 요약은 생략하고 오직 추가된 목차 데이터만 응답해.<|im_end|>
+<|im_start|>user
+[이어서 분석할 본문]
+{text}
+
+[출력 스펙]
+{
+  "canonical_data": { 
+    "heading_tree": [ { "level": 1, "title": "목차명", "sub": [] } ] 
+  },
+  "status": "completed"
+}
+<|im_end|>
+<|im_start|>assistant
