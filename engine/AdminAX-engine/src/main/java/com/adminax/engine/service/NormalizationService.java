@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.UUID;
 
@@ -85,10 +87,22 @@ public class NormalizationService {
 	        if (originalFilename != null && originalFilename.contains(".")) {
 	            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
 	        }
+	        
+	        // 날짜별 폴더 경로 생성 (YYYYMMDD)
+	        String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+	        File storageDir = new File(sharedPath, dateDir);
+	        
+	        
+	        if (!storageDir.exists()) {
+	            boolean created = storageDir.mkdirs();
+	            if (created) {
+	                log.info("[+] 새 날짜 디렉토리 생성: {}", storageDir.getAbsolutePath());
+	            }
+	        }
 
 	        // 2. 물리적 저장은 [UUID].[확장자] 형태로 (특수문자/공백 문제 원천 차단)
 	        String savedFileName = docUuid + extension;
-	        File targetFile = new File(sharedPath, savedFileName);
+	        File targetFile = new File(storageDir, savedFileName);
 
 	        multipartFile.transferTo(targetFile);
 	        
