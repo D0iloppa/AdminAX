@@ -44,7 +44,8 @@ public class ReceiptsService {
     // SSE Emitter 관리소
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    @Value("${adminax.shared.path}")
+    
+    @Value("${adminax.path.shared-docs}")
     private String sharedPath;
 
     // --- SSE Status Management ---
