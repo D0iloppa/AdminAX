@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,9 +37,9 @@ public class ReceiptsController {
         this.receiptsService = receiptsService;
     }
     
-    @GetMapping("")
+    @GetMapping("/")
     public void samplePage(HttpServletResponse response) throws IOException {
-        response.sendRedirect("/receipt/index.html"); 
+    	response.sendRedirect("index.html");
     }
     
     @GetMapping(value = "/subscribe/{batchId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

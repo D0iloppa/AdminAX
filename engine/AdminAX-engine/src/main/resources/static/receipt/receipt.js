@@ -1,11 +1,12 @@
 /**
  * AdminAX Receipt Normalization Script
- * 작성자: kdi39 (도일)
+ * 작성자: kdi3939 (도일)
  */
 
 let eventSource = null;
 
 async function uploadFiles() {
+	
     const fileInput = document.getElementById('fileInput');
     const output = document.getElementById('output');
     const uploadBtn = document.getElementById('uploadBtn');
@@ -33,7 +34,7 @@ async function uploadFiles() {
 
     try {
         // 1. 파일 업로드 API 호출
-        const response = await fetch('/receipt/upload', {
+        const response = await fetch('upload', {
             method: 'POST',
             body: formData
         });
@@ -67,7 +68,7 @@ function connectSSE(batchId) {
     if (eventSource) eventSource.close();
 
     // SSE 엔드포인트 연결
-    eventSource = new EventSource(`/receipt/subscribe/${batchId}`);
+    eventSource = new EventSource(`subscribe/${batchId}`);
 
     // 연결 확인 이벤트
     eventSource.addEventListener("CONNECT", (e) => {
