@@ -24,16 +24,54 @@ function generateQR() {
     new QRCode(qrContainer, { text: mobileUrl, width: 80, height: 80, colorDark: "#0d6efd" });
 }
 
+socket.onopen = (e) => {
+    console.log(`%c[Socket Open] 서버와 연결되었습니다. (SID: ${sid})`, "color: #0d6efd; font-weight: bold;");
+};
+
 // 3. 소켓 메시지 수신 (모바일 수신)
 socket.onmessage = async (event) => {
-    const res = JSON.parse(event.data);
-    if (res.type === "MOBILE_UPLOAD") {
-        const blob = await (await fetch(res.data)).blob();
-        table.updateOrAddData([{
-            orgName: res.fileName, status: "pending", name: "모바일 수신 영수증",
-            amount: 0, _rawFile: new File([blob], res.fileName, { type: "image/jpeg" })
-        }]);
+    // [로그] 수신 데이터 원본 출력
+    console.log("%c[Socket Message Received]", "color: #198754; font-weight: bold;", event.data);
+
+    try {
+        const res = JSON.parse(event.data);
+
+        // A. 모바일 이미지 수신 처리
+        if (res.type === "MOBILE_UPLOAD") {
+            console.log("📸 모바일에서 이미지 도착:", res.fileName);
+            const blob = await (await fetch(res.data)).blob();
+            table.updateOrAddData([{
+                orgName: res.fileName, 
+                status: "pending", 
+                name: "모바일 수신 영수증",
+                amount: 0, 
+                _rawFile: new File([blob], res.fileName, { type: "image/jpeg" })
+            }]);
+        } 
+        
+        // B. 타 클라이언트 접속/종료 알림 (서버 로직에 따라 다름)
+        // 만약 서버에서 다른 사용자가 붙었을 때 공지해준다면 여기서 잡힙니다.
+        else if (res.type === "SYSTEM_NOTICE") {
+            console.info("%c[System Notice]", "color: #fd7e14;", res.message);
+        }
+
+    } catch (err) {
+        console.error("❌ 메시지 파싱 에러:", err, event.data);
     }
+};
+
+socket.onclose = (event) => {
+    if (event.wasClean) {
+        console.warn(`%c[Socket Closed] 정상 종료 (Code: ${event.code}, Reason: ${event.reason})`, "color: #6c757d;");
+    } else {
+        // 서버 장애나 네트워크 단절 시
+        console.error(`%c[Socket Dead] 연결이 비정상적으로 끊겼습니다.`, "color: #dc3545; font-weight: bold;");
+    }
+};
+
+// 4. 에러 발생 시
+socket.onerror = (error) => {
+    console.error("%c[Socket Error]", "color: #dc3545; font-weight: bold;", error);
 };
 
 // 4. 서버 분석 시작: '..'을 활용해 컨텍스트 루트의 'upload' 호출 [cite: 2026-02-11]
