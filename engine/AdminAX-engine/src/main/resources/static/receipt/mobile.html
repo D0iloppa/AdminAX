@@ -35,16 +35,22 @@
             if (duration > 0) toastTimer = setTimeout(() => statusInfo.classList.remove('show'), duration);
         }
         
-        // 프록시 경로 대응 basePath 추출
-        const currentPath = window.location.pathname;
-		const basePath = currentPath.replace(/\/(mobile|index\.html)?\/?$/, '');
+        // [Anchor Strategy] 서비스 경로(/receipt)를 기준으로 컨텍스트 루트를 동적으로 추출
+        // URL이 /api/receipt/mobile 이면 contextRoot는 /api 가 됩니다.
+        const contextRoot = window.location.pathname.split('/receipt')[0];
 
-        const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-        const socketUrl = `${protocol}${window.location.host}${basePath}/ws/receipt?sid=${sid}`;
+        // WebSocket 주소 조립 (브라우저가 프로토콜/호스트/포트를 알아서 완성)
+        const socketUrl = new URL(contextRoot + '/ws/receipt' + window.location.search, window.location.href).href.replace(/^http/, 'ws');
 
         const ws = new WebSocket(socketUrl);
-        ws.onopen = () => { notify("✅ PC와 연결되었습니다.", "success", 2000); document.getElementById('shotBtn').disabled = false; };
-        ws.onclose = () => { notify("❌ 연결 끊김 (서버 확인 필요)", "danger", 0); document.getElementById('shotBtn').disabled = true; };
+        ws.onopen = () => { 
+            notify("✅ PC와 연결되었습니다.", "success", 2000); 
+            document.getElementById('shotBtn').disabled = false; 
+        };
+        ws.onclose = () => { 
+            notify("❌ 연결 끊김 (서버 확인 필요)", "danger", 0); 
+            document.getElementById('shotBtn').disabled = true; 
+        };
 
         async function processAndSend(input) {
             const file = input.files[0];
@@ -52,9 +58,16 @@
             notify("⏳ 이미지 최적화 중...", "warning", 0);
             try {
                 const compressedDataUrl = await compressImage(file);
-                ws.send(JSON.stringify({ sid: sid, type: "MOBILE_UPLOAD", fileName: "MOB_" + Date.now() + ".jpg", data: compressedDataUrl }));
+                ws.send(JSON.stringify({ 
+                    sid: sid, 
+                    type: "MOBILE_UPLOAD", 
+                    fileName: "MOB_" + Date.now() + ".jpg", 
+                    data: compressedDataUrl 
+                }));
                 notify("✅ 전송 완료!", "success", 2000);
-            } catch (err) { notify("❌ 압축/전송 실패", "danger", 3000); }
+            } catch (err) { 
+                notify("❌ 압축/전송 실패", "danger", 3000); 
+            }
             input.value = "";
         }
 
