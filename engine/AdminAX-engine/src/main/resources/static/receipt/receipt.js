@@ -205,7 +205,7 @@ function initTable() {
             }},
             {title: "일자", field: "date", editor: "input", width: 110},
             {title: "카드명", field: "cardName", editor: "input", width: 110},
-            {title: "카드번호", field: "cardNumber", editor: "input", width: 100},
+            {title: "카드번호", field: "cardNumber", editor: "input", width: 110},
             {title: "차종", field: "carType", editor: "input", width: 90},
             {title: "차량번호", field: "carNumber", editor: "input", width: 110},
             {title: "사용처", field: "name", editor: "input", minWidth: 180},
@@ -214,14 +214,87 @@ function initTable() {
             {title: "부가세", field: "taxType", editor: "list", width: 100, editorParams: { values: ["공제", "불공제"] }},
             {title: "합계", field: "amount", editor: "number", width: 110, bottomCalc: "sum", formatter: "money", formatterParams: { thousand: ",", precision: 0 }},
             {title: "사용자", field: "user", editor: "input", width: 100},
-            {title: "보기", width: 60, hozAlign: "center", formatter: () => "🔍", cellClick: (e, cell) => showOverlay(cell.getRow().getData())},
-            {title: "삭제", formatter: "buttonCross", width: 60, cellClick: (e, cell) => cell.getRow().delete()}
+            {title: "보기", width: 80, hozAlign: "center", formatter: () => "🔍", cellClick: (e, cell) => showOverlay(cell.getRow().getData())},
+            {title: "삭제", formatter: "buttonCross", width: 80, cellClick: (e, cell) => cell.getRow().delete()}
         ]
     });
 }
 
 function closeOverlay() { document.getElementById("imageOverlay").style.display = "none"; }
 function onPCFilesSelected(e) { table.updateOrAddData(Array.from(e.target.files).map(f => ({ orgName: f.name, status: "pending", name: "PC 파일", amount: 0, _rawFile: f }))); e.target.value = ""; }
+
+
+function copyGridToClipboard() {
+    const rows = table.getData().filter(row => row.status === "complete");
+	
+    if (rows.length === 0) return alert("복사할 데이터가 없습니다.");
+
+    // [핵심] 데이터 정제 함수: null/undefined 처리 및 구분자 제거 [cite: 2026-02-10]
+    const clean = (val) => {
+        if (val === null || val === undefined) return "";
+        // 데이터 내부의 탭(\t)이나 줄바꿈(\n)이 있으면 엑셀 칸이 밀리므로 공백으로 치환 [cite: 2026-02-10]
+        return String(val).replace(/[\t\n\r]/g, " ").trim();
+    };
+
+    const clipboardText = rows.map(row => [
+        clean(row.date),
+        clean(row.cardName),
+        clean(row.cardNumber),
+		clean(row.carType),
+        clean(row.carNumber),
+        clean(row.name),
+        clean(row.account),
+        clean(row.usage),
+        clean(row.taxType),
+        row.amount || "", // 합계가 0일 때 빈칸을 원하시면 "" 사용 [cite: 2026-02-10]
+        clean(row.user)
+    ].join("\t")).join("\n"); // 행 사이에는 줄바꿈, 열 사이에는 정확히 탭 1개 유지 [cite: 2026-02-10]
+
+    // 하이브리드 복사 실행 (HTTPS/HTTP 대응) [cite: 2026-02-10]
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(clipboardText).then(onCopySuccess).catch(() => copyFallback(clipboardText));
+    } else {
+        copyFallback(clipboardText);
+    }
+}
+
+/** * 구형 브라우저 및 HTTP 환경을 위한 복사 방식 [cite: 2026-02-10]
+ */
+function copyFallback(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // 화면 밖으로 밀어내기
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+
+    try {
+        const successful = document.execCommand('copy'); // 레거시 복사 명령 [cite: 2026-02-10]
+        if (successful) onCopySuccess();
+        else alert('복사 실패');
+    } catch (err) {
+        alert('복사 중 오류 발생');
+    }
+
+    document.body.removeChild(textArea);
+}
+
+/** 복사 성공 시 UI 피드백 [cite: 2026-02-10] */
+function onCopySuccess() {
+    const badge = document.getElementById('status-badge');
+    const originalText = badge.textContent;
+    badge.textContent = "📋 복사 완료!";
+    badge.className = "badge bg-info ms-auto";
+    setTimeout(() => {
+        badge.textContent = originalText;
+        badge.className = "badge bg-success ms-auto";
+    }, 2000);
+}
 
 
 
