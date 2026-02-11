@@ -61,7 +61,6 @@ socket.onmessage = async (event) => {
 function handleSystemMessage(res) {
     if (res.message === "NEW_CLIENT_JOINED") {
         console.log("%c[Notice] 📱 새 기기가 연결되었습니다.", "color: #fd7e14; font-weight: bold;");
-        notify("📱 새 기기가 연결되었습니다.", "success");
     } else {
         // 기타 시스템 공지 처리 (v4.6 확장 대비) [cite: 2026-02-11]
         console.info("%c[System Info]", "color: #0dcaf0;", res.message);
@@ -203,13 +202,43 @@ function showOverlay(data) {
 function initImageControls() {
     const container = document.getElementById("imgContainer");
     const img = document.getElementById("overlayImg");
+
+    // [핵심] 기존 리스너 제거 후 재등록 (메모리 누수 방지 및 중복 방지) [cite: 2026-02-11]
     container.onwheel = (e) => {
-        e.preventDefault(); scale = Math.min(Math.max(0.5, scale + (e.deltaY < 0 ? 0.1 : -0.1)), 5);
-        img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+        scale = Math.min(Math.max(0.5, scale + delta), 5);
+        updateTransform();
     };
-    container.onmousedown = (e) => { start = { x: e.clientX - pointX, y: e.clientY - pointY }; isPanning = true; };
-    window.onmousemove = (e) => { if (!isPanning) return; pointX = e.clientX - start.x; pointY = e.clientY - start.y; img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; };
-    window.onmouseup = () => isPanning = false;
+
+    container.onmousedown = (e) => {
+        // [중요] 브라우저 기본 이미지 드래그 동작 차단 [cite: 2026-02-11]
+        e.preventDefault(); 
+        start = { x: e.clientX - pointX, y: e.clientY - pointY };
+        isPanning = true;
+        img.style.cursor = "grabbing";
+    };
+
+    // 전역 이벤트를 활용해 컨테이너 밖에서도 드래그 유지 [cite: 2026-02-11]
+    window.onmousemove = (e) => {
+        if (!isPanning) return;
+        // 마우스 좌표와 시작 좌표의 차이를 계산하여 위치 업데이트 [cite: 2026-02-11]
+        pointX = e.clientX - start.x;
+        pointY = e.clientY - start.y;
+        updateTransform();
+    };
+
+    window.onmouseup = () => {
+        isPanning = false;
+        img.style.cursor = "grab";
+    };
+}
+
+// 변환 로직 함수화 (가독성 증대) [cite: 2026-02-11]
+function updateTransform() {
+    const img = document.getElementById("overlayImg");
+    // CSS Transform 공식: $$ \text{transform} = \text{translate}(pointX, pointY) \cdot \text{scale}(scale) $$
+    img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
 }
 
 function closeOverlay() { document.getElementById("imageOverlay").style.display = "none"; }
