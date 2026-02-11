@@ -49,7 +49,7 @@ async function startAnalysis() {
 
     try {
         // [핵심] '/api' 언급 금지. 현재 폴더(/receipt/)의 상위(/api/)에 있는 upload 호출 [cite: 2026-02-11]
-        const response = await fetch('../upload', { method: 'POST', body: formData });
+        const response = await fetch('upload', { method: 'POST', body: formData });
         const result = await response.json();
         connectSSE(result.batchId);
     } catch (e) { console.error("Upload Error:", e); }
@@ -58,7 +58,7 @@ async function startAnalysis() {
 // 5. SSE 결과 수신: 컨텍스트 루트의 'subscribe' 활용 [cite: 2026-02-11]
 function connectSSE(batchId) {
     if (sseSource) sseSource.close();
-    sseSource = new EventSource(`../subscribe/${batchId}`);
+    sseSource = new EventSource(`subscribe/${batchId}`);
 
     sseSource.addEventListener("PROGRESS", (e) => {
         const data = JSON.parse(e.data);
