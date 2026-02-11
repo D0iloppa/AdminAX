@@ -37,7 +37,8 @@
         
         // 프록시 경로 대응 basePath 추출
         const currentPath = window.location.pathname;
-        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+		const basePath = currentPath.replace(/\/(mobile|index\.html)?\/?$/, '');
+
         const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
         const socketUrl = `${protocol}${window.location.host}${basePath}/ws/receipt?sid=${sid}`;
 
