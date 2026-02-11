@@ -1,29 +1,29 @@
-/** * AdminAX Receipt Engine v3.9 (Final Package)
- * [보안/프록시 대응/재분석/필터링복사 통합본]
+/** * AdminAX Receipt Engine v4.0 (Infra-Aware & Full Package)
+ * [프록시 대응 / 실시간 소켓 / SSE 분석 / 이미지 줌·팬 / TSV 복사]
  */
 
 let table;
 let sseSource = null;
-const sid = "AX_1"; // 세션 ID (필요시 동적으로 변경 가능)
+const sid = "AX_1"; // 세션 ID
 
-// 1. 프록시 서브경로 자동 감지 및 공통 경로 설정 [cite: 2026-02-11]
+// 1. 프록시 및 경로 설정: 브라우저의 현재 경로를 기반으로 자동 계산
 const currentPath = window.location.pathname;
 const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
 const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
 const socketUrl = `${protocol}${window.location.host}${basePath}/ws/receipt?sid=${sid}`;
 
-// 2. 초기화 및 QR 생성
+// 2. 초기화: DOM 로드 완료 후 그리드와 QR 생성
 document.addEventListener("DOMContentLoaded", () => {
     initTable();
     generateQR();
 });
 
+// 3. QR 생성: 모바일 접속용 URL 동적 생성
 function generateQR() {
-    const currentUrl = window.location.href.split('?')[0];
-    const qrBasePath = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
-    const mobileUrl = `${qrBasePath}/mobile?sid=${sid}`;
-    
+    // index.html을 제외한 현재 경로에 mobile 주소 결합
+    const mobileUrl = window.location.href.replace('index.html', '') + "mobile?sid=" + sid;
     const qrContainer = document.getElementById("qrcode");
+    
     qrContainer.innerHTML = "";
     new QRCode(qrContainer, {
         text: mobileUrl,
@@ -32,7 +32,7 @@ function generateQR() {
     });
 }
 
-// 3. WebSocket 연결 및 모바일 수신 핸들러
+// 4. WebSocket 연결 및 모바일 데이터 수신
 const socket = new WebSocket(socketUrl);
 
 socket.onopen = () => console.log("✅ PC 소켓 연결 성공! SID:", sid);
@@ -40,6 +40,7 @@ socket.onmessage = async (event) => {
     const res = JSON.parse(event.data);
     if (res.type === "MOBILE_UPLOAD") {
         console.log("📩 모바일 이미지 수신됨:", res.fileName);
+        // Base64 데이터를 Blob으로 변환하여 File 객체 생성
         const blob = await (await fetch(res.data)).blob();
         const file = new File([blob], res.fileName, { type: "image/jpeg" });
 
@@ -52,8 +53,10 @@ socket.onmessage = async (event) => {
         }]);
     }
 };
+socket.onclose = () => console.warn("⚠️ 소켓 연결 끊김");
+socket.onerror = (err) => console.error("❌ 소켓 에러:", err);
 
-// 4. PC 로컬 파일 선택 핸들러
+// 5. PC 로컬 파일 선택 핸들러
 function onPCFilesSelected(event) {
     const files = Array.from(event.target.files);
     const newRows = files.map(file => ({
@@ -67,7 +70,7 @@ function onPCFilesSelected(event) {
     event.target.value = ""; 
 }
 
-// 5. 서버 분석 시작 (대기 및 실패 항목 포함)
+// 6. 서버 분석 시작: 상대 경로 'upload' 활용
 async function startAnalysis() {
     const targetRows = table.getRows().filter(row => {
         const s = row.getData().status;
@@ -83,7 +86,8 @@ async function startAnalysis() {
     });
 
     try {
-        const response = await fetch(`${basePath}/upload`, { method: 'POST', body: formData });
+        // 인프라 전역 설정 덕분에 단순 상대 경로로 호출 가능
+        const response = await fetch('upload', { method: 'POST', body: formData });
         const result = await response.json();
         connectSSE(result.batchId);
     } catch (error) {
@@ -92,10 +96,10 @@ async function startAnalysis() {
     }
 }
 
-// 6. SSE 분석 결과 업데이트
+// 7. SSE 분석 결과 업데이트
 function connectSSE(batchId) {
     if (sseSource) sseSource.close();
-    sseSource = new EventSource(`${basePath}/subscribe/${batchId}`);
+    sseSource = new EventSource(`subscribe/${batchId}`);
 
     sseSource.addEventListener("PROGRESS", (e) => {
         const data = JSON.parse(e.data);
@@ -108,15 +112,15 @@ function connectSSE(batchId) {
             table.updateOrAddData([{
                 ...data.parsedData,
                 status: isError ? "failed" : "complete",
-                name: isError ? `❌ 분석 실패 (${data.parsedData.remarks || 'Quota Exceeded'})` : data.parsedData.name
+                name: isError ? `❌ 분석 실패 (${data.parsedData.remarks || 'API Error'})` : data.parsedData.name
             }]);
         }
     });
 
     sseSource.onerror = (err) => {
         console.error("SSE Connection Error:", err);
-        const loadingRows = table.getRows().filter(row => row.getData().status === "loading");
-        loadingRows.forEach(row => {
+        // 로딩 중인 행들을 실패 상태로 전환
+        table.getRows().filter(row => row.getData().status === "loading").forEach(row => {
             row.update({ status: "failed", name: "❌ 서버 응답 중단 (재시도 필요)" });
         });
         if (document.getElementById('status-badge')) {
@@ -135,12 +139,12 @@ function connectSSE(batchId) {
     });
 }
 
-// 7. 그리드 초기화 (Tabulator)
+// 8. 그리드 초기화 (Tabulator)
 function initTable() {
     table = new Tabulator("#receipt-table", {
         height: "calc(90vh - 350px)",
         layout: "fitColumns",
-        index: "orgName",
+        index: "orgName", // 업데이트 매칭 키
         columns: [
             {title: "상태", field: "status", width: 80, hozAlign: "center", formatter: (cell) => {
                 const s = cell.getValue();
@@ -176,7 +180,11 @@ function initTable() {
             {title: "사용자", field: "user", editor: "input", width: 100},
             {
                 title: "보기", width: 60, hozAlign: "center", 
-                formatter: () => "🔍", cellClick: (e, cell) => showOverlay(cell.getRow().getData())
+                formatter: () => "🔍", cellClick: (e, cell) => {
+                    const data = cell.getRow().getData();
+                    if (data._rawFile) showOverlay(data);
+                    else alert("원본 파일이 없습니다.");
+                }
             },
             {title: "삭제", formatter: "buttonCross", width: 60, cellClick: (e, cell) => cell.getRow().delete()},
             {title: "orgName", field: "orgName", visible: false}
@@ -184,7 +192,7 @@ function initTable() {
     });
 }
 
-// 8. 클립보드 복사 (완료 데이터만 TSV 필터링) [cite: 2026-02-10]
+// 9. 클립보드 복사 (TSV 정제)
 function copyGridToClipboard() {
     const rows = table.getData().filter(row => row.status === "complete");
     if (rows.length === 0) return alert("복사할 '완료' 데이터가 없습니다.");
@@ -227,7 +235,7 @@ function copyFallback(text) {
     document.body.removeChild(textArea);
 }
 
-// 9. 이미지 오버레이 및 줌/팬 로직
+// 10. 이미지 오버레이 조작 (줌/팬/드래그)
 let scale = 1, pointX = 0, pointY = 0, start = { x: 0, y: 0 }, isPanning = false;
 
 function showOverlay(data) {
@@ -235,12 +243,15 @@ function showOverlay(data) {
     const img = document.getElementById("overlayImg");
     const dataRow = document.getElementById("overlayDataRow");
     
+    // 상태 초기화
     scale = 1; pointX = 0; pointY = 0;
     img.style.transform = `translate(0px, 0px) scale(1)`;
 
+    // 이미지 로드
     if (img.src && img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
     img.src = URL.createObjectURL(data._rawFile);
     
+    // 하단 데이터 테이블 업데이트
     const formattedAmount = data.amount ? Number(data.amount).toLocaleString() : "0";
     dataRow.innerHTML = `
         <td>${data.date || ""}</td><td>${data.cardName || ""}</td><td>${data.cardNumber || ""}</td>
@@ -263,6 +274,7 @@ function initImageControls() {
     const container = document.getElementById("imgContainer");
     const img = document.getElementById("overlayImg");
 
+    // 휠 줌 기능
     container.onwheel = (e) => {
         e.preventDefault();
         const delta = -e.deltaY;
@@ -271,6 +283,7 @@ function initImageControls() {
         img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
     };
 
+    // 드래그 팬(Pan) 시작
     container.onmousedown = (e) => {
         if (e.target !== img) return;
         e.preventDefault();
@@ -291,19 +304,24 @@ function initImageControls() {
 
 function closeOverlay() { document.getElementById("imageOverlay").style.display = "none"; }
 
+// 창 드래그 기능 구현
 function makeDraggable(el, header) {
     let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
     header.onmousedown = (e) => {
-        e.preventDefault(); p3 = e.clientX; p4 = e.clientY;
+        e.preventDefault();
+        p3 = e.clientX; p4 = e.clientY;
         document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
         document.onmousemove = (e) => {
-            e.preventDefault(); p1 = p3 - e.clientX; p2 = p4 - e.clientY;
+            e.preventDefault();
+            p1 = p3 - e.clientX; p2 = p4 - e.clientY;
             p3 = e.clientX; p4 = e.clientY;
-            el.style.top = (el.offsetTop - p2) + "px"; el.style.left = (el.offsetLeft - p1) + "px";
+            el.style.top = (el.offsetTop - p2) + "px";
+            el.style.left = (el.offsetLeft - p1) + "px";
         };
     };
 }
 
+// 최종 데이터 제출 로직
 function submitFinalData() {
     const data = table.getData().map(({_rawFile, ...rest}) => rest);
     console.log("최종 데이터 제출:", data);
