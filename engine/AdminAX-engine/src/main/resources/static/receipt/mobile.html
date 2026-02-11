@@ -10,19 +10,12 @@
         .camera-btn { width: 150px; height: 150px; border-radius: 50%; border: 8px solid #fff; background: #0d6efd; color: white; font-weight: bold; font-size: 1.2rem; transition: 0.2s; }
         .camera-btn:active { transform: scale(0.9); background: #0056b3; }
         .camera-btn:disabled { background: #666; border-color: #999; }
-        
-        /* [신규] 토스트 스타일 정의 */
-        #statusInfo { 
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); 
-            width: 85%; z-index: 1000; opacity: 0; visibility: hidden;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
+        #statusInfo { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); width: 85%; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         #statusInfo.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
     </style>
 </head>
 <body>
-    <div id="statusInfo" class="alert shadow-lg py-2 small text-center">📡 서버 연결 시도 중...</div>
-
+    <div id="statusInfo" class="alert shadow-lg py-2 small text-center">📡 서버 연결 중...</div>
     <div class="text-center px-4">
         <h4 class="mb-5 fw-bold">📷 영수증 촬영</h4>
         <button id="shotBtn" class="camera-btn shadow-lg" disabled onclick="document.getElementById('cam').click()">촬영</button>
@@ -35,59 +28,32 @@
         const sid = new URLSearchParams(window.location.search).get('sid');
         let toastTimer;
 
-        /**
-         * 토스트 메시지 표시 함수
-         * @param {string} msg - 표시할 메시지
-         * @param {string} type - bootstrap 색상 클래스 (info, success, danger, warning)
-         * @param {number} duration - 유지 시간 (0이면 사라지지 않음)
-         */
         function notify(msg, type, duration = 3000) {
             if (toastTimer) clearTimeout(toastTimer);
-            
             statusInfo.innerText = msg;
             statusInfo.className = `alert alert-${type} shadow-lg py-2 small text-center show`;
-            
-            if (duration > 0) {
-                toastTimer = setTimeout(() => {
-                    statusInfo.classList.remove('show');
-                }, duration);
-            }
+            if (duration > 0) toastTimer = setTimeout(() => statusInfo.classList.remove('show'), duration);
         }
         
+        // 프록시 경로 대응 basePath 추출
+        const currentPath = window.location.pathname;
+        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
         const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-        const ws = new WebSocket(protocol + location.host + "/ws/receipt?sid=" + sid);
+        const socketUrl = `${protocol}${window.location.host}${basePath}/ws/receipt?sid=${sid}`;
 
-        ws.onopen = () => {
-            notify("✅ PC와 연결되었습니다.", "success", 2000);
-            document.getElementById('shotBtn').disabled = false;
-        };
-
-        ws.onclose = () => {
-            notify("❌ 연결 끊김 (서버 확인 필요)", "danger", 0); // 연결 끊김은 계속 표시
-            document.getElementById('shotBtn').disabled = true;
-        };
+        const ws = new WebSocket(socketUrl);
+        ws.onopen = () => { notify("✅ PC와 연결되었습니다.", "success", 2000); document.getElementById('shotBtn').disabled = false; };
+        ws.onclose = () => { notify("❌ 연결 끊김 (서버 확인 필요)", "danger", 0); document.getElementById('shotBtn').disabled = true; };
 
         async function processAndSend(input) {
             const file = input.files[0];
             if (!file) return;
-
             notify("⏳ 이미지 최적화 중...", "warning", 0);
-
             try {
                 const compressedDataUrl = await compressImage(file);
-                
-                ws.send(JSON.stringify({
-                    sid: sid,
-                    type: "MOBILE_UPLOAD",
-                    fileName: "MOB_" + Date.now() + ".jpg",
-                    data: compressedDataUrl
-                }));
-
+                ws.send(JSON.stringify({ sid: sid, type: "MOBILE_UPLOAD", fileName: "MOB_" + Date.now() + ".jpg", data: compressedDataUrl }));
                 notify("✅ 전송 완료!", "success", 2000);
-            } catch (err) {
-                console.error(err);
-                notify("❌ 압축/전송 실패", "danger", 3000);
-            }
+            } catch (err) { notify("❌ 압축/전송 실패", "danger", 3000); }
             input.value = "";
         }
 
@@ -100,22 +66,14 @@
                     img.src = e.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
+                        let width = img.width, height = img.height;
                         const MAX_WIDTH = 1600;
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                        canvas.width = width; canvas.height = height;
+                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
                         resolve(canvas.toDataURL('image/jpeg', 0.7));
                     };
-                    img.onerror = reject;
                 };
-                reader.onerror = reject;
             });
         }
     </script>
