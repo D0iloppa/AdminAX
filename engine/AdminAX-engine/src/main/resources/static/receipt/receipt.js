@@ -30,35 +30,53 @@ socket.onopen = (e) => {
 
 // 3. 소켓 메시지 수신 (모바일 수신)
 socket.onmessage = async (event) => {
-    // [로그] 수신 데이터 원본 출력
-    console.log("%c[Socket Message Received]", "color: #198754; font-weight: bold;", event.data);
+    console.log("%c[Socket Received]", "color: #198754; font-weight: bold;", event.data);
 
     try {
         const res = JSON.parse(event.data);
 
-        // A. 모바일 이미지 수신 처리
-        if (res.type === "MOBILE_UPLOAD") {
-            console.log("📸 모바일에서 이미지 도착:", res.fileName);
-            const blob = await (await fetch(res.data)).blob();
-            table.updateOrAddData([{
-                orgName: res.fileName, 
-                status: "pending", 
-                name: "모바일 수신 영수증",
-                amount: 0, 
-                _rawFile: new File([blob], res.fileName, { type: "image/jpeg" })
-            }]);
-        } 
-        
-        // B. 타 클라이언트 접속/종료 알림 (서버 로직에 따라 다름)
-        // 만약 서버에서 다른 사용자가 붙었을 때 공지해준다면 여기서 잡힙니다.
-        else if (res.type === "SYSTEM_NOTICE") {
-            console.info("%c[System Notice]", "color: #fd7e14;", res.message);
-        }
+        switch (res.type) {
+            // A. 시스템 관련 메시지 통합 처리 [cite: 2026-02-11]
+            case "SYSTEM":
+                handleSystemMessage(res);
+                break;
 
+            // B. 모바일 이미지 수신 처리
+            case "MOBILE_UPLOAD":
+                console.log("📸 이미지 수신:", res.fileName);
+                handleImageUpload(res);
+                break;
+
+            default:
+                console.warn("⚠️ 알 수 없는 메시지 타입:", res.type);
+        }
     } catch (err) {
-        console.error("❌ 메시지 파싱 에러:", err, event.data);
+        console.error("❌ 파싱 실패:", err);
     }
 };
+
+// 시스템 메시지 전용 핸들러 [cite: 2026-02-11]
+function handleSystemMessage(res) {
+    if (res.message === "NEW_CLIENT_JOINED") {
+        console.log("%c[Notice] 📱 새 기기가 연결되었습니다.", "color: #fd7e14; font-weight: bold;");
+        notify("📱 새 기기가 연결되었습니다.", "success");
+    } else {
+        // 기타 시스템 공지 처리 (v4.6 확장 대비) [cite: 2026-02-11]
+        console.info("%c[System Info]", "color: #0dcaf0;", res.message);
+    }
+}
+
+// 이미지 처리 전용 핸들러 [cite: 2026-02-11]
+async function handleImageUpload(res) {
+    const blob = await (await fetch(res.data)).blob();
+    table.updateOrAddData([{
+        orgName: res.fileName, 
+        status: "pending", 
+        name: "모바일 수신 영수증",
+        amount: 0, 
+        _rawFile: new File([blob], res.fileName, { type: "image/jpeg" })
+    }]);
+}
 
 socket.onclose = (event) => {
     if (event.wasClean) {
