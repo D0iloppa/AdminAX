@@ -3,6 +3,7 @@
  */
 package com.adminax.engine.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -18,6 +19,10 @@ import com.adminax.engine.handler.ReceiptSocketHandler;
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
+	
+	@Value("${adminax.websocket.max-buffer-size-mb}")
+    private int maxBufferSizeMb;
+	
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(new ReceiptSocketHandler(), "/ws/receipt").setAllowedOrigins("*");
@@ -26,8 +31,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Bean
     public ServletServerContainerFactoryBean createWebSocketContainer() {
         ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
-        container.setMaxTextMessageBufferSize(10 * 1024 * 1024); // 10MB
-        container.setMaxBinaryMessageBufferSize(10 * 1024 * 1024); // 10MB
+        
+        long bufferSizeInBytes = (long) maxBufferSizeMb * 1024 * 1024;
+        
+        container.setMaxTextMessageBufferSize((int) bufferSizeInBytes);
+        container.setMaxBinaryMessageBufferSize((int) bufferSizeInBytes);
+        
         return container;
     }
 }
