@@ -16,6 +16,21 @@
         #qrcode img { width: 80px; height: 80px; }
         .preview-container { display: none; background: #fafafa; padding: 20px; text-align: center; border-top: 1px solid #eee; }
         .preview-container img { max-width: 90%; max-height: 500px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        
+        #imageOverlay {
+		    position: fixed;
+		    top: 50%;   /* 화면 중앙 시작 */
+		    left: 50%;
+		    transform: translate(-50%, -50%); /* 처음엔 중앙 정렬 */
+		    width: 90%;
+		    z-index: 2000;
+		    display: none;
+		    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+		}
+		
+		.card-header {
+		    cursor: move; /* "나를 잡고 움직이세요" 표시 */
+		}
     </style>
 </head>
 <body>
