@@ -23,10 +23,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // 2. 모바일 페이지 접속용 QR 생성
 function generateQR() {
-    // 컨트롤러의 /receipt/mobile 매핑을 고려한 절대 경로 주소 [cite: 2026-02-10]
-    const mobileUrl = window.location.origin + "/receipt/mobile?sid=" + sid;
+    /** * [해결] window.location.origin 대신 현재 주소(href) 기반으로 추출 
+     * http://adminax.co.kr:13943/api/receipt/index.html -> http://adminax.co.kr:13943/api/receipt/
+     */
+    const currentUrl = window.location.href.split('?')[0]; // 쿼리스트링 제거
+    const basePath = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
     
-    new QRCode(document.getElementById("qrcode"), {
+    // 최종 모바일 경로 조합 [cite: 2026-02-11]
+    const mobileUrl = `${basePath}/mobile?sid=${sid}`;
+    
+    console.log("🔗 QR 생성 경로:", mobileUrl);
+
+    // 기존 QRCode 생성 로직
+    const qrContainer = document.getElementById("qrcode");
+    qrContainer.innerHTML = ""; // 중복 생성 방지
+    
+    new QRCode(qrContainer, {
         text: mobileUrl,
         width: 80, height: 80,
         colorDark: "#0d6efd"
