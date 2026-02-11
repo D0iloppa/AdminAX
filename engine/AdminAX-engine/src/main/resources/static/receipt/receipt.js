@@ -15,6 +15,7 @@ const socket = new WebSocket(socketUrl);
 document.addEventListener("DOMContentLoaded", () => {
     initTable();
     generateQR();
+	loadUserPromptFromDB();
 });
 
 // 2. QR 생성: 현재 접속한 폴더 경로에 'mobile' 페이지 매핑 [cite: 2026-02-11]
@@ -221,3 +222,34 @@ function initTable() {
 
 function closeOverlay() { document.getElementById("imageOverlay").style.display = "none"; }
 function onPCFilesSelected(e) { table.updateOrAddData(Array.from(e.target.files).map(f => ({ orgName: f.name, status: "pending", name: "PC 파일", amount: 0, _rawFile: f }))); e.target.value = ""; }
+
+
+
+// [GET] DB에서 로드할 때 [cite: 2026-02-11]
+async function loadUserPromptFromDB() {
+    try {
+        const res = await fetch('get-user-prompt'); 
+        const data = await res.json();
+        // 도일님의 의도대로 user_prompt 키를 참조합니다. [cite: 2026-02-11]
+        document.getElementById('userPromptArea').value = data.user_prompt || "";
+    } catch (e) { console.warn("로드 실패"); }
+}
+
+// [POST] DB에 저장할 때 [cite: 2026-02-11]
+async function saveUserPrompt() {
+    const newVal = document.getElementById('userPromptArea').value;
+    try {
+        await fetch('save-user-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // value 대신 user_prompt로 전송 [cite: 2026-02-11]
+            body: JSON.stringify({ user_prompt: newVal }) 
+        });
+        alert("저장 완료");
+    } catch (e) { alert("저장 실패"); }
+}
+
+
+function openSettingsModal() {
+    new bootstrap.Modal(document.getElementById('settingsModal')).show();
+}

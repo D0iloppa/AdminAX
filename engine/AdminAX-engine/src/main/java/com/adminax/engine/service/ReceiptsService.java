@@ -34,6 +34,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -314,6 +315,8 @@ public class ReceiptsService {
 	    String apiKey = (String) config.get("api_key");
 	    String modelName = (String) config.getOrDefault("model_name", "gemini-2.0-flash");
 	    String systemInstruction = (String) config.getOrDefault("system_instruction", "");
+	    String user_prompt = (String) config.getOrDefault("user_prompt", "");
+	    
 	    Map<String, Object> params = (Map<String, Object>) config.getOrDefault("parameters", Map.of());
 
 	    try {
@@ -324,6 +327,9 @@ public class ReceiptsService {
 	        double topP = ((Number) params.getOrDefault("top_p", 0.95)).doubleValue();
 	        int maxTokens = ((Number) params.getOrDefault("max_output_tokens", 4096)).intValue();
 
+	        
+	        String userPrompt = "[추론 보조 지시사항: 공란일 경우 무시]\n" + user_prompt + "\n 영수증 분석 결과를 JSON만으로 출력하세요. 설명/마크다운/백틱 금지.";
+	        
 	        // Gemini generateContent request
 	        Map<String, Object> body = Map.of(
 	            "systemInstruction", Map.of(
@@ -333,7 +339,7 @@ public class ReceiptsService {
 	                Map.of(
 	                    "role", "user",
 	                    "parts", List.of(
-	                        Map.of("text", "영수증 분석 결과를 JSON만으로 출력하세요. 설명/마크다운/백틱 금지."),
+	                        Map.of("text", userPrompt),
 	                        Map.of("inlineData", Map.of(
 	                            "mimeType", "image/jpeg",
 	                            "data", b64
@@ -394,6 +400,35 @@ public class ReceiptsService {
 	        log.error("AI 분석 실패 (파일명: {}): {}", file.getName(), e.getMessage());
 	        return Map.of("status", "error", "orgName", file.getName(), "remarks", "분석 실패: " + e.getMessage());
 	    }
+	}
+
+	/**
+	 * 1. 메소드명 : getUserPrompt
+	 * 2. 작성일: 2026. 2. 11.
+	 * 3. 작성자: kdi39
+	 * 4. 설명: 
+	 * 5. 수정일: kdi39
+	 */
+	public String getUserPrompt() {
+		// TODO Auto-generated method stub
+		
+		DevConfig dv = getDevConfig();
+		Map<String, Object> config = dv.getConfigValue();
+		String user_prompt = (String) config.getOrDefault("user_prompt", "");
+		
+		return user_prompt;
+	}
+
+	@Transactional // DB 상태 변경을 위해 반드시 필요합니다. [cite: 2026-02-11]
+	public void saveUserPrompt(String newPrompt) {
+		DevConfig config = getDevConfig();
+
+	    // 2. 엔티티 내부의 JSON Map에서 "value" 필드만 업데이트합니다. [cite: 2026-02-11]
+	    config.getConfigValue().put("user_prompt", newPrompt);
+
+	    // 3. @Transactional 덕분에 별도의 save() 호출 없이도 [cite: 2026-02-11]
+	    // 메서드 종료 시점에 변경 사항이 DB에 자동으로 UPDATE(Dirty Checking)됩니다. [cite: 2026-02-11]
+	    devConfigRepository.save(config); 
 	}
 	
 	

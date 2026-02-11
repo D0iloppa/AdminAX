@@ -17,6 +17,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -80,6 +81,24 @@ public class ReceiptsController {
         result.put("message", "총 " + files.length + "개의 영수증 분석 및 CSV 병합을 시작했습니다.");
         
         return ResponseEntity.ok(result);
+    }
+    
+    @GetMapping(value = "get-user-prompt", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> getUserPrompt() {
+    	
+    	String user_prompt = receiptsService.getUserPrompt();
+    	
+    	return ResponseEntity.ok(Map.of("user_prompt", user_prompt));
+        
+    }
+    
+    @PostMapping("/save-user-prompt")
+    public ResponseEntity<Void> saveUserPrompt(@RequestBody Map<String, String> request) {
+        String newPrompt = request.get("user_prompt");
+        
+        receiptsService.saveUserPrompt(newPrompt);
+        
+        return ResponseEntity.ok().build();
     }
     
     
