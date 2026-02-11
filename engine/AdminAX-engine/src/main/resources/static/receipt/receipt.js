@@ -4,11 +4,13 @@
 
 let table;
 let sseSource = null;
-const sid = new URLSearchParams(window.location.search).get('sid') || "AX_1";
+//const sid = "AX_" + Math.random().toString(36).substr(2, 9);
+const sid = "AX_1";
 
 // 1. WebSocket: URL 객체를 활용해 현재 파일 상위의 'ws/receipt'를 찾아감 [cite: 2026-02-11]
 // 문자열 파싱 없이 브라우저 내장 기능으로 상대 경로를 절대 소켓 주소로 변환합니다.
-const socketUrl = new URL('../ws/receipt' + window.location.search, window.location.href).href.replace(/^http/, 'ws');
+//const socketUrl = new URL('../ws/receipt' + window.location.search, window.location.href).href.replace(/^http/, 'ws');
+const socketUrl = new URL('../ws/receipt?sid=' + sid, window.location.href).href.replace(/^http/, 'ws');
 const socket = new WebSocket(socketUrl);
 
 document.addEventListener("DOMContentLoaded", () => {
