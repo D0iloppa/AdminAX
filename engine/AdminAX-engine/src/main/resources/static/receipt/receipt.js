@@ -194,7 +194,7 @@ function initTable() {
         height: "calc(90vh - 350px)",
         layout: "fitColumns",
         index: "orgName",
-        columns: [
+		columns: [
             {title: "상태", field: "status", width: 80, hozAlign: "center", formatter: (cell) => {
                 const s = cell.getValue();
                 if (s === "pending") return "⏳";
@@ -203,8 +203,16 @@ function initTable() {
                 return "✅";
             }},
             {title: "일자", field: "date", editor: "input", width: 110},
+            {title: "카드명", field: "cardName", editor: "input", width: 110},
+            {title: "카드번호", field: "cardNumber", editor: "input", width: 100},
+            {title: "차종", field: "carType", editor: "input", width: 90},
+            {title: "차량번호", field: "carNumber", editor: "input", width: 110},
             {title: "사용처", field: "name", editor: "input", minWidth: 180},
+            {title: "계정", field: "account", editor: "list", width: 120, editorParams: { values: ["도서인쇄비", "복리후생비", "소모품비", "여비교통비", "접대비", ""] }},
+            {title: "용도", field: "usage", editor: "list", width: 120, editorParams: { values: ["식대", "주유비", "주차비", "소모품", ""] }},
+            {title: "부가세", field: "taxType", editor: "list", width: 100, editorParams: { values: ["공제", "불공제"] }},
             {title: "합계", field: "amount", editor: "number", width: 110, bottomCalc: "sum", formatter: "money", formatterParams: { thousand: ",", precision: 0 }},
+            {title: "사용자", field: "user", editor: "input", width: 100},
             {title: "보기", width: 60, hozAlign: "center", formatter: () => "🔍", cellClick: (e, cell) => showOverlay(cell.getRow().getData())},
             {title: "삭제", formatter: "buttonCross", width: 60, cellClick: (e, cell) => cell.getRow().delete()}
         ]
