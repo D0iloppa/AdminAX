@@ -38,10 +38,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-web' // webmvc 포함
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+ 	implementation 'org.springframework.boot:spring-boot-starter-webflux' // WebClient
     
     implementation 'kr.dogfoot:hwplib:1.1.0'
     implementation 'org.apache.tika:tika-core:2.9.1'
 	implementation 'org.apache.tika:tika-parsers-standard-package:2.9.1'
+	
     
     
     // --- Persistence (MyBatis) ---
@@ -56,8 +59,16 @@ dependencies {
     // --- Spring AI (추상화 인터페이스만 추가) ---
     // 특정 모델(OpenAI 등) 대신 핵심 인터페이스만 참조합니다.
     implementation 'org.springframework.ai:spring-ai-core'
+    implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+    
+    //implementation 'org.springframework.ai:spring-ai-google-ai-gemini-spring-boot-starter'
+    //implementation 'org.springframework.ai:spring-ai-vertex-ai-gemini-spring-boot-starter'
+    
+    
     
     // --- Utilities ---
+    implementation 'com.google.code.gson:gson:2.11.0'
+    
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'

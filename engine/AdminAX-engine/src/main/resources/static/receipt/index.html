@@ -3,42 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AdminAX | 영수증 업로드</title>
+    <title>AdminAX | Dashboard (PC)</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link href="https://unpkg.com/tabulator-tables@6.2.1/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        #output { font-family: 'Consolas', monospace; font-size: 0.9rem; overflow-y: auto; max-height: 400px; }
-        .progress { height: 10px; display: none; }
+        body { background-color: #f1f3f5; padding: 25px; font-family: 'Pretendard', sans-serif; }
+        .toolbar-card { background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .main-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+        #receipt-table { width: 100% !important; }
+        #qrcode-container { padding: 10px; background: white; border-radius: 8px; border: 1px solid #ddd; }
+        #qrcode img { width: 80px; height: 80px; }
+        .preview-container { display: none; background: #fafafa; padding: 20px; text-align: center; border-top: 1px solid #eee; }
+        .preview-container img { max-width: 90%; max-height: 500px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     </style>
 </head>
-<body class="bg-light">
-    <div class="container mt-5">
-        <div class="card shadow border-0">
-            <div class="card-header bg-primary text-white py-3">
-                <h4 class="mb-0">🛡️ AdminAX Receipt Normalizer</h4>
+<body>
+    <div class="container-fluid">
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0 text-dark">🛡️ AdminAX Receipt Dashboard</h3>
+            <div id="qrcode-container" class="text-center">
+                <div id="qrcode"></div>
+                <div class="small text-muted mt-1" style="font-size: 10px;">Mobile Connect</div>
             </div>
-            <div class="card-body p-4">
-                <p class="text-secondary">영수증 이미지를 업로드하면 상용 OCR API가 데이터를 정규화하여 CSV로 병합합니다.</p>
-                
-                <div class="mb-4">
-                    <label for="fileInput" class="form-label fw-bold">영수증 파일 선택 (N개 가능)</label>
-                    <input class="form-control" type="file" id="fileInput" multiple accept="image/*">
-                </div>
-                
-                <button id="uploadBtn" class="btn btn-primary w-100 py-2 fw-bold" onclick="uploadFiles()">🚀 분석 시작</button>
+        </header>
 
-                <div class="progress mt-4" id="progressWrapper">
-                    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="card-footer bg-white p-4">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0">📜 실시간 처리 로그</h6>
-                    <span id="statusBadge" class="badge bg-secondary">대기 중</span>
-                </div>
-                <pre id="output" class="bg-dark text-success p-3 rounded">파일을 선택하고 시작 버튼을 눌러주세요.</pre>
-            </div>
-        </div>
+        
+        <div class="toolbar-card d-flex align-items-center gap-3">
+		    <input type="file" id="pcFileBtn" multiple accept="image/*" style="display:none" onchange="onPCFilesSelected(event)">
+		    <button class="btn btn-outline-primary fw-bold px-4" onclick="document.getElementById('pcFileBtn').click()">📂 파일 첨부</button>
+		    <button class="btn btn-primary px-4 fw-bold" onclick="startAnalysis()">🚀 영수증 인식</button>
+		    <div class="ms-auto">
+		        <div id="status-badge" class="badge bg-success ms-auto">SYSTEM READY</div>
+		    </div>
+		</div>
+		
+		<!-- 
+		<div class="d-flex justify-content-end mb-2">
+		    <button class="btn btn-outline-primary fw-bold px-4" 
+		            onclick="copyGridToClipboard()" 
+		            style="opacity: 0.8;">
+		        📋 복사
+		    </button>
+		</div>
+		 -->
+		
+		<div class="main-card">
+		    <div class="progress rounded-0" style="height: 5px;">
+		        <div id="progBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+		    </div>
+		    
+		    <div id="receipt-table"></div>
+		
+		    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3 border-top">
+			    <span class="text-secondary small fw-medium">
+			        * 🔍 아이콘을 클릭하여 원본 확인 및 수동 수정을 진행하세요.
+			    </span>
+			
+			    <div class="d-flex gap-2" style="padding-left: 10px;padding-right: 10px;">
+			        <button class="btn btn-outline-primary fw-bold px-4" onclick="copyGridToClipboard()">
+			            📋 복사
+			        </button>
+			        <button style="display:none;" class="btn btn-success fw-bold px-4" onclick="submitFinalData()">
+			            ✅ 제출
+			        </button>
+			    </div>
+			</div>
+		</div>
     </div>
+    
+    <div id="imageOverlay" style="display:none; position: fixed; z-index: 2000; 
+	     width: 850px; height: 800px; min-width: 600px; min-height: 600px; 
+	     background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); 
+	     overflow: hidden; resize: both;"> 
+	    
+	    <div id="overlayHeader" style="padding: 10px; background: #333; color: white; cursor: move; display: flex; justify-content: space-between; align-items: center; height: 40px;">
+	        <span class="small fw-bold">🖼️ 원본 대조 (상단: 참조 / 중앙: 줌·팬 / 하단: 데이터)</span>
+	        <button type="button" class="btn-close btn-close-white" onclick="closeOverlay()" style="font-size: 0.7rem;"></button>
+	    </div>
+	
+	    <div id="overlayReference" style="padding: 12px; background: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; gap: 25px; font-size: 0.75rem; height: 100px;">
+	        <div style="flex: 1.2; border-right: 1px solid #ced4da; padding-right: 15px;">
+	            <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">🚗 보유 차량</div>
+	            <div style="line-height: 1.5;">
+	                <span style="font-weight: bold;">175하9967</span> (레이) <br>
+	                <span style="font-weight: bold;">189호4359</span> (모닝)
+	            </div>
+	        </div>
+	        <div style="flex: 5;">
+	            <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">💳 카드 매핑 (전체 번호 대조용)</div>
+	            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; line-height: 1.4;">
+	                <div><span style="color:#0d6efd; font-weight: bold;">4140-0325-2373-8918</span> : 원백</div>
+	                <div><span style="color:#0d6efd; font-weight: bold;">5585-0323-8097-7988</span> : 조호성</div>
+	                <div><span style="color:#0d6efd; font-weight: bold;">5585-0323-8092-7991</span> : 박정우</div>
+	                <div><span style="color:#0d6efd; font-weight: bold;">4140-0323-8993-5913</span> : 백현우</div>
+	                <div style="grid-column: span 2; margin-top: 3px; border-top: 1px dashed #ddd; padding-top: 3px;">
+	                    <span style="color:#dc3545; font-weight: bold;">4140-0309-0233-8961 / 4140-0311-0899-1983</span> : 사무실카드
+	                </div>
+	            </div>
+	        </div>
+	    </div>
+	    
+	    <div id="imgContainer" style="width: 100%; height: calc(100% - 280px); background: #333; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab;">
+	        <img id="overlayImg" src="" style="max-width: 100%; max-height: 100%; object-fit: contain; transition: transform 0.1s ease-out; transform-origin: center;">
+	    </div>
+	    
+	    <div id="overlayDataTable" style="padding: 15px 15px 25px 15px; background: white; height: 140px; overflow-x: auto; border-top: 1px solid #dee2e6;">
+	        <table class="table table-sm table-bordered" style="font-size: 0.75rem; margin-bottom: 0; min-width: 800px;">
+	            <thead class="table-light">
+	                <tr style="text-align: center;">
+	                    <th>일자</th><th>카드명</th><th>카드번호</th><th>차종</th><th>차량번호</th><th>사용처</th><th>계정</th><th>용도</th><th>부가세</th><th>합계</th><th>사용자</th>
+	                </tr>
+	            </thead>
+	            <tbody>
+	                <tr id="overlayDataRow" style="text-align: center; vertical-align: middle;">
+	                    </tr>
+	            </tbody>
+	        </table>
+	    </div>
+	</div>
+    
+    <script src="https://unpkg.com/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
     <script src="receipt.js"></script>
 </body>
 </html>
