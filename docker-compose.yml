@@ -9,8 +9,11 @@ services:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "5432:5432"
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     deploy:
       resources:
         limits:
@@ -82,8 +85,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${DB_NAME}
       - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
       - SPRING_REDIS_HOST=adminax-redis
-      - API_SERVER_PORT=8080
-      - API_SERVER_CONTEXT=/api
+      - API_SERVER_PORT=${API_SERVER_PORT}
+      - API_SERVER_CONTEXT=${API_SERVER_CONTEXT}
+      - WS_MAX_BUFFER_SIZE=${WS_MAX_BUFFER_SIZE:-10}
     depends_on:
       - db
       - elasticsearch

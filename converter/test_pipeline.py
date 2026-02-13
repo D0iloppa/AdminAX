@@ -29,8 +29,9 @@ def main():
     # 2. Push Job
     print(f"[*] Pushing job to {INPUT_STREAM}...")
     job_data = {
-        "docId": DOC_UUID,
-        "filePath": TEST_FILE_PATH,
+        "doc_uuid": DOC_UUID,
+        "file_path": TEST_FILE_PATH,
+        "filename": "test_manual.hwp",  # Java sends this too
         "fileType": "hwp" 
     }
     msg_id = r.xadd(INPUT_STREAM, job_data)

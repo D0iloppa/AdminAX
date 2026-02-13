@@ -7,7 +7,6 @@ docker build -t adminax-converter:test ./converter
 # 2. 캐시 디렉토리 및 테스트 파일 준비
 mkdir -p ./data/huggingface
 mkdir -p ./shared-docs/raw
-mkdir -p ./shared-docs/json
 
 # 3. 네트워크 확인 (adminax-network가 존재해야 함 - docker compose up 상태여야 함)
 NET_NAME="adminax-network"

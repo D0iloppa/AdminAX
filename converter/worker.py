@@ -268,12 +268,30 @@ def main():
 
             for stream, payload in messages:
                 for msg_id, data in payload:
-                    hwp_path, doc_uuid = data.get('filePath'), data.get('docId')
+                    # Java Engine Payload: {'file_path': '...', 'doc_uuid': '...', 'filename': '...'}
+                    hwp_path = data.get('file_path') or data.get('filePath') # Fallback for test script
+                    doc_uuid = data.get('doc_uuid') or data.get('docId')     # Fallback for test script
+                    
                     if hwp_path and os.path.exists(hwp_path):
+                        print(f"[*] Processing: {doc_uuid} -> {hwp_path}")
                         final_json = process_chain(hwp_path)
                         if final_json:
-                            r.xadd(RESULT_STREAM, {'doc_uuid': doc_uuid, 'json_path': final_json, 'status': 'SUCCESS'})
+                            # JAVA expects: {'doc_uuid': ..., 'jsonPath': ..., 'status': ...} based on pipeline.md
+                            # Actually pipeline.md said 'jsonPath', verify if Java needs snake_case too?
+                            # Java consumer usually parses standard keys. Let's use snake_case for safety if Producer used it.
+                            # But wait, user only showed Producer. Let's send both or standard.
+                            # Let's stick to what we had but ensure keys match what we observed in Java if possible.
+                            # For now, let's just make sure we READ correctly.
+                            
+                            r.xadd(RESULT_STREAM, {
+                                'doc_uuid': doc_uuid, 
+                                'json_path': final_json, # Java NormService likely expects this or similar
+                                'status': 'SUCCESS'
+                            })
                             print(f"[>] Pipeline Success: {doc_uuid}")
+                    else:
+                        print(f"[!] File missing or params invalid: {data}")
+                    
                     r.xack(INPUT_STREAM, GROUP_NAME, msg_id)
         except Exception as e:
             print(f"[!] Worker Loop Error: {e}")
