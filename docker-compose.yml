@@ -139,11 +139,13 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ}
-      - SPRING_PROFILES_ACTIVE=prod
-      - CORE_ENGINE_URL=http://core-engine:9090
+      - SPRING_PROFILES_ACTIVE=dev 
+      - CORE_ENGINE_URL=http://adminax-core:8080
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${DB_NAME}
       - SPRING_DATASOURCE_USERNAME=${DB_USER}
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./admin-ui:/app
     depends_on:
       - core-engine
       - db
@@ -161,18 +163,17 @@ services:
       context: ./chat-ui
       dockerfile: Dockerfile
     container_name: adminax-chat-ui
-    restart: unless-stopped
+    # [개발용 핵심 설정]
+    command: npm run dev
+    volumes:
+      - ./chat-ui:/app             # 호스트 소스를 컨테이너 내부로 마운트
+      - /app/node_modules          # 호스트의 node_modules가 덮어쓰지 않도록 보호
     environment:
       - TZ=${TZ}
-      - NODE_ENV=production
-      - ENGINE_URL=http://core-engine:9090
-    depends_on:
-      - core-engine
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    logging: *default-logging
+      - NODE_ENV=development
+      - ENGINE_URL=http://adminax-core:8080
+    networks:
+      - adminax-network
 
   # 8. API Gateway (Nginx)
   gateway:
