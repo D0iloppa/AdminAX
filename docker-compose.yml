@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # 1. Database (Metadata)
   db:
@@ -70,7 +72,7 @@ services:
     depends_on:
       - adminax-redis
 
-  # 4. Core Engine (Spring Boot)
+  # 4. Core Engine (Spring Boot - API 전용)
   core-engine:
     build:
       context: ./engine
@@ -87,7 +89,6 @@ services:
       - SPRING_REDIS_HOST=adminax-redis
       - API_SERVER_PORT=${API_SERVER_PORT}
       - API_SERVER_CONTEXT=${API_SERVER_CONTEXT}
-      - WS_MAX_BUFFER_SIZE=${WS_MAX_BUFFER_SIZE:-10}
     depends_on:
       - db
       - elasticsearch
@@ -111,7 +112,6 @@ services:
       - TZ=${TZ}
       - REDIS_HOST=adminax-redis
       - HF_HOME=/app/model_cache
-      # [NEW] AI 관련 파라미터 외부 노출
       - MODEL_NAME=${MODEL_NAME}
       - PROMPT_FILE=${PROMPT_FILE}
       - AI_MAX_TOKENS=${AI_MAX_TOKENS}
@@ -128,7 +128,53 @@ services:
           memory: ${CONVERTER_MEM_LIMIT}
     logging: *default-logging
 
-  # 6. API Gateway (Nginx)
+  # ---------------------------------------------------------
+  # [NEW] 6. Administrator UI (Spring Boot)
+  # ---------------------------------------------------------
+  admin-ui:
+    build:
+      context: ./admin-ui
+      dockerfile: Dockerfile
+    container_name: adminax-admin-ui
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - SPRING_PROFILES_ACTIVE=prod
+      - CORE_ENGINE_URL=http://core-engine:9090
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${DB_NAME}
+      - SPRING_DATASOURCE_USERNAME=${DB_USER}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - core-engine
+      - db
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
+
+  # ---------------------------------------------------------
+  # [NEW] 7. User Chat UI (Express.js)
+  # ---------------------------------------------------------
+  chat-ui:
+    build:
+      context: ./chat-ui
+      dockerfile: Dockerfile
+    container_name: adminax-chat-ui
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - NODE_ENV=production
+      - ENGINE_URL=http://core-engine:9090
+    depends_on:
+      - core-engine
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging: *default-logging
+
+  # 8. API Gateway (Nginx)
   gateway:
     image: nginx:stable-alpine
     container_name: adminax-gateway
@@ -140,6 +186,8 @@ services:
     volumes:
       - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
+      - chat-ui
+      - admin-ui
       - core-engine
     deploy:
       resources:
