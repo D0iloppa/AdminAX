@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. Database (Metadata)
   db:
@@ -172,8 +170,6 @@ services:
       - TZ=${TZ}
       - NODE_ENV=development
       - ENGINE_URL=http://adminax-core:8080
-    networks:
-      - adminax-network
 
   # 8. API Gateway (Nginx)
   gateway:
