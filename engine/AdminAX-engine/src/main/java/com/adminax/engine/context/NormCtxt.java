@@ -8,7 +8,11 @@ package com.adminax.engine.context;
  */
 public class NormCtxt {
 	
+	
 	Long doc_id;
+	
+	
+	String task_id; // group
 	String doc_uuid;
 	
 	String name;
@@ -19,6 +23,14 @@ public class NormCtxt {
 	
 	
 	
+
+	public String getTask_id() {
+		return task_id;
+	}
+
+	public void setTask_id(String task_id) {
+		this.task_id = task_id;
+	}
 
 	public Long getDoc_id() {
 		return doc_id;

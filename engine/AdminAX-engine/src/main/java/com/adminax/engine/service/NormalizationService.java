@@ -75,81 +75,131 @@ public class NormalizationService {
 	 * @param context 
 	 */
 	public void processDocuments(MultipartFile[] files, Map<String, Object> context) {
-		// TODO Auto-generated method stub
+
+		
+		// 큐잉 등록
+		String task_id = UUID.randomUUID().toString();
 		
 		List<NormCtxt> list = new ArrayList<>();
 		
 		for(MultipartFile file: files) {
 			
-			String name = file.getOriginalFilename();
+			String doc_uuid = UUID.randomUUID().toString();
+			String fileName = file.getOriginalFilename();
 			
-			NormCtxt ctxt = normalize(file);
-			ctxt.setName(name);
+			
+			//NormCtxt ctxt = normalize(file);
+			
+			NormCtxt ctxt = new NormCtxt();
+			ctxt.setTask_id(task_id);
+			ctxt.setName(fileName);
+			ctxt.setDoc_uuid(doc_uuid);
 			ctxt.setStatus(DocumentStatus.PROCESSING.getValue());
+			
+			initTask(ctxt, file);
 			
 			// 리스트 추가
 			list.add(ctxt);
 			
 		}
 		
+		context.put("task_id", task_id);
 		context.put("files", list);
 		
 	}
 
+	private void initTask(NormCtxt ctxt, MultipartFile multipartFile) {
+	
+		if (multipartFile == null || multipartFile.isEmpty()) return;
+	
+		
+		File targetFile = null;
+		
+		try {
+	
+			String docUuid = ctxt.getDoc_uuid();
+			String originalFilename = multipartFile.getOriginalFilename();
+	
+			// 1. 파일 업로드
+			targetFile = docUpload(docUuid, multipartFile);
+			
+			// 2. DB에 기록
+			insertDocumentTask(ctxt); 
+	
+			// 3. 비동기 처리 메서드 호출
+			normalize(targetFile, originalFilename, docUuid);
+	
+		} catch (IOException e) {			
+			
+			log.error("파일 저장 중 오류 발생: {}", e.getMessage());
+			ctxt.setStatus(DocumentStatus.FAILED.getValue());
+			
+		}finally {
+			
+			if (targetFile != null && targetFile.exists()) {
+		        targetFile.delete(); 
+		        log.info("[-] 로직 실패로 인한 임시 파일 삭제 완료: {}", targetFile.getName());
+		    }
+		}
+	
+	}
+	
+	
+	
+		/**
+		 * 1. 메소드명 : insertDocumentTask
+		 * 2. 작성일: 2026. 2. 24.
+		 * 3. 작성자: kdi39
+		 * 4. 설명: 
+		 * 5. 수정일: kdi39
+		 */
+	private void insertDocumentTask(NormCtxt ctxt) {
+		// TODO Auto-generated method stub
+		
+	}
+
 	/**
-	 * 1. 메소드명 : normalize
-	 * 2. 작성일: 2026. 2. 3.
+	 * 1. 메소드명 : docUpload
+	 * 2. 작성일: 2026. 2. 24.
 	 * 3. 작성자: kdi39
 	 * 4. 설명: 
 	 * 5. 수정일: kdi39
+	 * @throws IOException 
+	 * @throws IllegalStateException 
 	 */
-	public NormCtxt normalize(MultipartFile multipartFile) {
-	    if (multipartFile == null || multipartFile.isEmpty()) {
-	        return null; 
-	    }
-
-	    try {
-	    	
-	    	String docUuid = UUID.randomUUID().toString();
-	        String originalFilename = multipartFile.getOriginalFilename();
-	        
-	        // 1. 원본 파일명에서 확장자 추출 (.hwp, .pdf 등)
-	        String extension = "";
-	        if (originalFilename != null && originalFilename.contains(".")) {
-	            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-	        }
-	        
-	        // 날짜별 폴더 경로 생성 (YYYYMMDD)
-	        String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-	        File storageDir = new File(sharedPath, dateDir);
-	        
-	        
-	        if (!storageDir.exists()) {
-	            boolean created = storageDir.mkdirs();
-	            if (created) {
-	                log.info("[+] 새 날짜 디렉토리 생성: {}", storageDir.getAbsolutePath());
-	            }
-	        }
-
-	        // 2. 물리적 저장은 [UUID].[확장자] 형태로 (특수문자/공백 문제 원천 차단)
-	        String savedFileName = docUuid + extension;
-	        File targetFile = new File(storageDir, savedFileName);
-
-	        multipartFile.transferTo(targetFile);
-	        
-	        log.info("[*] 물리 파일 저장 완료: {} (원본명: {})", 
-	                targetFile.getAbsolutePath(), originalFilename);
-
-	        // 2. 비동기 처리 메서드 호출 (UUID를 넘겨서 일관성 유지)
-	        return normalize(targetFile, originalFilename, docUuid);
-
-	    } catch (IOException e) {
-	        log.error("파일 저장 중 오류 발생: {}", e.getMessage());
-	        return null;
-	    }
-	    
-	    
+	private File docUpload(String docUuid, MultipartFile multipartFile) throws IllegalStateException, IOException {
+	
+		String originalFilename = multipartFile.getOriginalFilename();
+	
+		// 1. 원본 파일명에서 확장자 추출 (.hwp, .pdf 등)
+		String extension = "";
+		if (originalFilename != null && originalFilename.contains(".")) {
+			extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+		}
+	
+		// 날짜별 폴더 경로 생성 (YYYYMMDD)
+		String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+		File storageDir = new File(sharedPath, dateDir);
+	
+		if (!storageDir.exists()) {
+			boolean created = storageDir.mkdirs();
+			if (created) {
+				log.info("[+] 새 날짜 디렉토리 생성: {}", storageDir.getAbsolutePath());
+			}
+		}
+	
+		// 2. 물리적 저장은 [UUID].[확장자] 형태로 (특수문자/공백 문제 원천 차단)
+		String savedFileName = docUuid + extension;
+		File targetFile = new File(storageDir, savedFileName);
+	
+		multipartFile.transferTo(targetFile);
+	
+		log.info("[*] 물리 파일 저장 완료: {} (원본명: {})", targetFile.getAbsolutePath(), originalFilename);
+		
+		return targetFile;
+	
 	}
+	
 	
 	private NormCtxt normalize(File file, String orgName, String docUuid) {
 	    log.info("[*] 비동기 정규화 요청 시작 - 파일: {}, UUID: {}", file.getName(), docUuid);
@@ -170,9 +220,6 @@ public class NormalizationService {
                     .in(convertStreamKey)
                     .ofMap(payload)
             );
-
-	        // 4. (권장) DB에 초기 상태 저장 로직이 올 자리
-	        // docMapper.insertInitialStatus(docUuid, file.getName(), "READY");
 	        
 	        NormCtxt result = new NormCtxt();
 	        result.setDoc_uuid(docUuid);
