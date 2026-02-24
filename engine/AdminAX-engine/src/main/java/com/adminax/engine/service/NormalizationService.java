@@ -64,7 +64,12 @@ public class NormalizationService {
 		List<NormCtxt> list = new ArrayList<>();
 		
 		for(MultipartFile file: files) {
+			
+			String name = file.getName();
+			
 			NormCtxt ctxt = normalize(file);
+			ctxt.setName(name);
+			
 			list.add(ctxt);
 		}
 		
