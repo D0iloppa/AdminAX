@@ -35,6 +35,22 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class NormalizationService {
 	
+	public enum DocumentStatus {
+	    PROCESSING("PROCESSING"),
+	    COMPLETED("COMPLETED"),
+	    FAILED("FAILED");
+
+	    private final String value;
+
+	    DocumentStatus(String value) {
+	        this.value = value;
+	    }
+
+	    public String getValue() {
+	        return value;
+	    }
+	}
+	
 	// 1. 상단에 선언된 의존성들
     private final RedisTemplate<String, String> redisTemplate;
   
@@ -65,12 +81,15 @@ public class NormalizationService {
 		
 		for(MultipartFile file: files) {
 			
-			String name = file.getName();
+			String name = file.getOriginalFilename();
 			
 			NormCtxt ctxt = normalize(file);
 			ctxt.setName(name);
+			ctxt.setStatus(DocumentStatus.PROCESSING.getValue());
 			
+			// 리스트 추가
 			list.add(ctxt);
+			
 		}
 		
 		context.put("files", list);
