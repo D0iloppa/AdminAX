@@ -46,11 +46,13 @@ public class NormalizationController {
             return ResponseEntity.badRequest().body("업로드할 파일이 없습니다.");
         }
 
+        
+        Map<String, Object> response = new HashMap<>();
+        
         // 2. 서비스로 위임 (정규화 프로세스 시작)
-        normalizationService.processDocuments(files);
+        normalizationService.processDocuments(files, response);
 
         // 3. 응답 결과 구성
-        Map<String, Object> response = new HashMap<>();
         response.put("totalFiles", files.length);
         response.put("message", "총 " + files.length + "개의 문서에 대한 정규화 처리를 시작했습니다.");
         

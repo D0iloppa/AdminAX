@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -54,14 +56,19 @@ public class NormalizationService {
 	 * 3. 작성자: kdi39
 	 * 4. 설명: 
 	 * 5. 수정일: kdi39
+	 * @param context 
 	 */
-	public void processDocuments(MultipartFile[] files) {
+	public void processDocuments(MultipartFile[] files, Map<String, Object> context) {
 		// TODO Auto-generated method stub
 		
+		List<NormCtxt> list = new ArrayList<>();
 		
 		for(MultipartFile file: files) {
 			NormCtxt ctxt = normalize(file);
+			list.add(ctxt);
 		}
+		
+		context.put("files", list);
 		
 	}
 
