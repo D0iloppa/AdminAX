@@ -3,6 +3,9 @@
  */
 package com.adminax.engine.entity;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -47,8 +50,10 @@ public class Document {
     private String summary;
 
     // PostgreSQL text[] 및 jsonb 처리를 위해 명시 (관련 라이브러리 필요)
+    @JdbcTypeCode(SqlTypes.ARRAY) 
+    @Column(name = "keywords", columnDefinition = "text[]")
     private String[] keywords; 
     
-    @Column(columnDefinition = "jsonb")
+    @Column(name = "canonical_json", columnDefinition = "jsonb")
     private String canonicalJson;
 }
