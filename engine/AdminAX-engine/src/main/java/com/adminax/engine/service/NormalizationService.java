@@ -127,6 +127,8 @@ public class NormalizationService {
 		
 		File targetFile = null;
 		
+		boolean isSuccess = false;
+		
 		try {
 	
 			String docUuid = ctxt.getDoc_uuid();
@@ -141,6 +143,8 @@ public class NormalizationService {
 	
 			// 3. 비동기 처리 메서드 호출
 			normalize(targetFile, originalFilename, docUuid);
+			
+			isSuccess = true;
 	
 		} catch (IOException e) {			
 			
@@ -149,6 +153,7 @@ public class NormalizationService {
 			
 		}finally {
 			
+			if(!isSuccess)
 			if (targetFile != null && targetFile.exists()) {
 		        targetFile.delete(); 
 		        log.info("[-] 로직 실패로 인한 임시 파일 삭제 완료: {}", targetFile.getName());
