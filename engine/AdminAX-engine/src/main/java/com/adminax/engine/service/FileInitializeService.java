@@ -5,6 +5,8 @@ package com.adminax.engine.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -63,7 +65,6 @@ public class FileInitializeService {
             String originalFilename = multipartFile.getOriginalFilename();
 
             // 1. 파일 물리 저장 (Service 내부의 docUpload 호출 - 혹은 유틸 클래스 활용)
-            // ctxt.getDoc_path()가 여기서 세팅되어야 합니다. [cite: 2026-02-25]
             targetFile = docUpload(docUuid, multipartFile);
             ctxt.setDoc_path(targetFile.getAbsolutePath());
 
@@ -127,14 +128,35 @@ public class FileInitializeService {
      * 실제 파일을 서버 디렉토리에 저장하는 로직
      */
     private File docUpload(String docUuid, MultipartFile file) throws IOException {
-        // 도일님의 기존 docUpload 로직을 여기에 옮기거나 주입받아 사용하세요. [cite: 2026-02-25]
-        String uploadDir = "/tmp/adminax/uploads/"; // 예시 경로
-        File dir = new File(uploadDir);
-        if (!dir.exists()) dir.mkdirs();
-
-        File targetFile = new File(uploadDir + docUuid + "_" + file.getOriginalFilename());
-        file.transferTo(targetFile);
-        return targetFile;
+    	
+    	String originalFilename = file.getOriginalFilename();
+    	
+		// 1. 원본 파일명에서 확장자 추출 (.hwp, .pdf 등)
+		String extension = "";
+		if (originalFilename != null && originalFilename.contains(".")) {
+			extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+		}
+	
+		// 날짜별 폴더 경로 생성 (YYYYMMDD)
+		String dateDir = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+		File storageDir = new File(sharedPath, dateDir);
+	
+		if (!storageDir.exists()) {
+			boolean created = storageDir.mkdirs();
+			if (created) {
+				log.info("[+] 새 날짜 디렉토리 생성: {}", storageDir.getAbsolutePath());
+			}
+		}
+	
+		// 2. 물리적 저장은 [UUID].[확장자] 형태로 (특수문자/공백 문제 원천 차단)
+		String savedFileName = docUuid + extension;
+		File targetFile = new File(storageDir, savedFileName);
+	
+		file.transferTo(targetFile);
+	
+		log.info("[*] 물리 파일 저장 완료: {} (원본명: {})", targetFile.getAbsolutePath(), originalFilename);
+		
+		return targetFile;
     }
     
     private NormCtxt normalize(File file, String orgName, String docUuid) {
