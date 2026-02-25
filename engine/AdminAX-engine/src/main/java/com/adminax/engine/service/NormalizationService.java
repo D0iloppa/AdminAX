@@ -21,8 +21,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.adminax.engine.context.NormCtxt;
+import com.adminax.engine.entity.Document;
+import com.adminax.engine.entity.Folder;
+import com.adminax.engine.entity.User;
 import com.adminax.engine.parser.DocParser;
+import com.adminax.engine.repository.DevConfigRepository;
+import com.adminax.engine.repository.DocumentRepository;
+import com.adminax.engine.repository.FolderRepository;
+import com.adminax.engine.repository.UserRepository;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,6 +58,10 @@ public class NormalizationService {
 	        return value;
 	    }
 	}
+	
+	private final FolderRepository folderRepository;
+	private final UserRepository userRepository;
+	private final DocumentRepository documentRepository;
 	
 	// 1. 상단에 선언된 의존성들
     private final RedisTemplate<String, String> redisTemplate;
@@ -122,6 +134,7 @@ public class NormalizationService {
 	
 			// 1. 파일 업로드
 			targetFile = docUpload(docUuid, multipartFile);
+			ctxt.setDoc_path(targetFile.getAbsolutePath());
 			
 			// 2. DB에 기록
 			insertDocumentTask(ctxt); 
@@ -145,17 +158,46 @@ public class NormalizationService {
 	}
 	
 	
+
 	
-		/**
-		 * 1. 메소드명 : insertDocumentTask
-		 * 2. 작성일: 2026. 2. 24.
-		 * 3. 작성자: kdi39
-		 * 4. 설명: 
-		 * 5. 수정일: kdi39
-		 */
-	private void insertDocumentTask(NormCtxt ctxt) {
-		// TODO Auto-generated method stub
+	/**
+	 * 1. 메소드명 : insertDocumentTask
+	 * 2. 작성일: 2026. 2. 24.
+	 * 3. 작성자: kdi39
+	 * 4. 설명: 
+	 * 5. 수정일: kdi39
+	 */
+	@Transactional
+	public void insertDocumentTask(NormCtxt ctxt) {
+	    // 1. 필수 객체 조회 (Folder, User)
 		
+		
+		/*
+	    Folder folder = folderRepository.findById(ctxt.getFolderId())
+	            .orElseThrow(() -> new RuntimeException("해당 폴더를 찾을 수 없습니다: " + ctxt.getFolderId()));
+	    
+	    User owner = userRepository.findById(ctxt.getOwnerId())
+	            .orElseThrow(() -> new RuntimeException("해당 유저를 찾을 수 없습니다: " + ctxt.getOwnerId()));
+	    */
+	    
+	    Folder folder = folderRepository.getReferenceById(1L);
+	    User owner = userRepository.getReferenceById(1L);
+
+	    // 2. Document 엔티티 빌드
+	    Document document = new Document();
+	    
+	    document.setDocUuid(ctxt.getDoc_uuid());
+	    document.setDocName(ctxt.getName());
+	    document.setDocPath(ctxt.getDoc_path()); // 물리 저장 경로
+	    document.setFolder(folder);
+	    document.setOwner(owner);
+	    
+	    document.setContent("");
+	    
+	    // 3. DB 저장
+	    documentRepository.save(document);
+	    
+	    log.info("[+] DB 기록 완료 - docUuid: {}", document.getDocUuid());
 	}
 
 	/**

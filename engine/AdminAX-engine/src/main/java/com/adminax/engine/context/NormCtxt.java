@@ -11,6 +11,7 @@ public class NormCtxt {
 	
 	Long doc_id;
 	
+	String doc_path;
 	
 	String task_id; // group
 	String doc_uuid;
@@ -71,6 +72,16 @@ public class NormCtxt {
 	public void setContent(String content) {
 		this.content = content;
 	}
+
+	public String getDoc_path() {
+		return doc_path;
+	}
+
+	public void setDoc_path(String doc_path) {
+		this.doc_path = doc_path;
+	}
+	
+	
 
 
 	
