@@ -9,6 +9,16 @@
 !/logs/
 !/proxy/
 
+# --- Document Storage ---
+# 실제 문서가 저장되는 폴더 내용은 제외
+/shared-docs/**
+
+# 폴더 구조 자체는 Git에서 관리 (구조 유지)
+!/shared-docs/
+
+# .gitkeep 파일이 있다면 추적 허용
+!/shared-docs/**/.gitkeep
+
 # 구조 유지를 위한 .gitkeep 파일은 예외적으로 허용
 !**/.gitkeep
 
