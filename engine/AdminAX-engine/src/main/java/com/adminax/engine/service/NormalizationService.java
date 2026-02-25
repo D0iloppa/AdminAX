@@ -112,7 +112,11 @@ public class NormalizationService {
 			ctxt.setDoc_uuid(doc_uuid);
 			ctxt.setStatus(DocumentStatus.PROCESSING.getValue());
 			
-			fileInitializeService.initTask(ctxt, file);
+			try {
+				fileInitializeService.initTask(ctxt, file);
+			}catch(Exception e) {
+				log.error("[-] 파일 [{}] 처리 실패: {}", file.getOriginalFilename(), e.getMessage());
+			}
 			
 			// 리스트 추가
 			list.add(ctxt);
