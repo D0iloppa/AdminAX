@@ -3,6 +3,8 @@
  */
 package com.adminax.engine.entity;
 
+import java.util.Map;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -54,6 +56,7 @@ public class Document {
     @Column(name = "keywords", columnDefinition = "text[]")
     private String[] keywords; 
     
-    @Column(name = "canonical_json", columnDefinition = "jsonb")
-    private String canonicalJson;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> canonicalJson;
 }
