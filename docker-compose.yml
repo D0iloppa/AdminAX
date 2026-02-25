@@ -160,15 +160,14 @@ services:
     build:
       context: ./chat-ui
       dockerfile: Dockerfile
+      target: ${CHAT_UI_BUILD_TARGET:-production}
     container_name: adminax-chat-ui
-    # [개발용 핵심 설정]
-    command: npm run dev
     volumes:
       - ./chat-ui:/app             # 호스트 소스를 컨테이너 내부로 마운트
       - /app/node_modules          # 호스트의 node_modules가 덮어쓰지 않도록 보호
     environment:
       - TZ=${TZ}
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-production}
       - ENGINE_URL=http://adminax-core:8080
 
   # 8. API Gateway (Nginx)
