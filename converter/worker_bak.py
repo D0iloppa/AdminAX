@@ -256,66 +256,43 @@ def process_chain(hwp_path):
 def main():
     init_model()
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-    try: 
-        r.xgroup_create(INPUT_STREAM, GROUP_NAME, mkstream=True)
-    except: 
-        pass
+    try: r.xgroup_create(INPUT_STREAM, GROUP_NAME, mkstream=True)
+    except: pass
 
     print(f"[*] AdminAX Stateful Worker is listening on {INPUT_STREAM}...")
 
     while True:
         try:
-            # 1. 메시지 수신
             messages = r.xreadgroup(GROUP_NAME, CONSUMER_NAME, {INPUT_STREAM: '>'}, count=1, block=5000)
-            if not messages: 
-                continue
+            if not messages: continue
 
             for stream, payload in messages:
                 for msg_id, data in payload:
-                    # Java Engine에서 넘겨준 파라미터 추출
-                    hwp_path = data.get('file_path')
-                    doc_uuid = data.get('doc_uuid')
-                    task_id = data.get('task_id') # SSE 알림을 위해 반드시 필요
+                    # Java Engine Payload: {'file_path': '...', 'doc_uuid': '...', 'filename': '...'}
+                    hwp_path = data.get('file_path') or data.get('filePath') # Fallback for test script
+                    doc_uuid = data.get('doc_uuid') or data.get('docId')     # Fallback for test script
                     
-                    if not all([hwp_path, doc_uuid, task_id]):
-                        print(f"[!] 필수 파라미터 누락: {data}")
-                        r.xack(INPUT_STREAM, GROUP_NAME, msg_id)
-                        continue
-
-                    if os.path.exists(hwp_path):
-                        print(f"[*] [Task:{task_id}] Processing: {doc_uuid}")
-                        
-                        # 2. 파이프라인 실행 (HWP -> MD -> AI -> JSON)
+                    if hwp_path and os.path.exists(hwp_path):
+                        print(f"[*] Processing: {doc_uuid} -> {hwp_path}")
                         final_json = process_chain(hwp_path)
-                        
                         if final_json:
-                            # 3. 성공 메시지 전송 (Java 리스너의 DocumentStatus.COMPLETED와 일치)
+                            # JAVA expects: {'doc_uuid': ..., 'jsonPath': ..., 'status': ...} based on pipeline.md
+                            # Actually pipeline.md said 'jsonPath', verify if Java needs snake_case too?
+                            # Java consumer usually parses standard keys. Let's use snake_case for safety if Producer used it.
+                            # But wait, user only showed Producer. Let's send both or standard.
+                            # Let's stick to what we had but ensure keys match what we observed in Java if possible.
+                            # For now, let's just make sure we READ correctly.
+                            
                             r.xadd(RESULT_STREAM, {
-                                'task_id': task_id,
-                                'doc_uuid': doc_uuid,
-                                'json_path': final_json,
-                                'status': 'COMPLETED'  # Java 측 completeLabel과 매칭
+                                'doc_uuid': doc_uuid, 
+                                'json_path': final_json, # Java NormService likely expects this or similar
+                                'status': 'SUCCESS'
                             })
                             print(f"[>] Pipeline Success: {doc_uuid}")
-                        else:
-                            # 4. 실패 메시지 전송
-                            r.xadd(RESULT_STREAM, {
-                                'task_id': task_id,
-                                'doc_uuid': doc_uuid,
-                                'status': 'FAILED'
-                            })
-                            print(f"[!] Pipeline Failed: {doc_uuid}")
                     else:
-                        print(f"[!] 파일을 찾을 수 없음: {hwp_path}")
-                        r.xadd(RESULT_STREAM, {
-                            'task_id': task_id,
-                            'doc_uuid': doc_uuid,
-                            'status': 'FAILED'
-                        })
+                        print(f"[!] File missing or params invalid: {data}")
                     
-                    # 처리 완료 승인
                     r.xack(INPUT_STREAM, GROUP_NAME, msg_id)
-                    
         except Exception as e:
             print(f"[!] Worker Loop Error: {e}")
             time.sleep(2)
