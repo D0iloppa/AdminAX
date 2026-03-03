@@ -44,7 +44,7 @@ async function uploadFiles() {
  * SSE 연결 및 이벤트 리스너 등록
  */
 function initSseConnection(taskId) {
-    const eventSource = new EventSource(`/subscribe/${taskId}`);
+    const eventSource = new EventSource(`subscribe/${taskId}`);
     
     // 1. 개별 문서 상태 업데이트 (DOC_PROGRESS)
     eventSource.addEventListener("DOC_PROGRESS", (event) => {
