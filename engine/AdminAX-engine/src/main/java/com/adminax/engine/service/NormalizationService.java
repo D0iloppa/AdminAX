@@ -22,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.adminax.engine.component.SseEmitters;
 import com.adminax.engine.context.NormCtxt;
 import com.adminax.engine.entity.Document;
 import com.adminax.engine.entity.Folder;
@@ -161,6 +163,20 @@ public class NormalizationService {
 	    // 만료 시간 일괄 설정
 	    redisTemplate.expire(allDocsKey, Duration.ofHours(24));
 	    redisTemplate.expire(failKey, Duration.ofHours(24));
+	}
+
+	
+	private final SseEmitters sseEmitters;
+
+		/**
+		 * 1. 메소드명 : docSubscribe
+		 * 2. 작성일: 2026. 3. 3.
+		 * 3. 작성자: kdi39
+		 * 4. 설명: 
+		 * 5. 수정일: kdi39
+		 */
+	public SseEmitter docSubscribe(String taskId) {
+		return sseEmitters.subscribe(taskId);
 	}
 	
 	

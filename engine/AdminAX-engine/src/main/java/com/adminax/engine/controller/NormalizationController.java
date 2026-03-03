@@ -7,13 +7,16 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.adminax.engine.service.NormalizationService;
 
@@ -26,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/norm")
 public class NormalizationController {
+	
 	
 	private final NormalizationService normalizationService;
 	
@@ -57,6 +61,12 @@ public class NormalizationController {
         response.put("message", "총 " + files.length + "개의 문서에 대한 정규화 처리를 시작했습니다.");
         
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping(value = "/subscribe/{taskId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribe(@PathVariable String taskId) {
+        // SseEmitters 서비스의 subscribe 메서드를 호출하여 Emitter를 반환합니다.
+        return normalizationService.docSubscribe(taskId);
     }
     
     
