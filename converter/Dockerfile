@@ -6,25 +6,26 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Seoul
 
 # 3. 필수 패키지 설치
-# libreoffice: HWP -> DOCX 변환 엔진
-# pandoc: DOCX -> MD 변환 엔진 (최종 산출물 제작용)
-# fonts-nanum: 한글 깨짐 방지 필수 폰트
-# python3-pip: Redis 워커 및 제어 로직 실행용
+# libreoffice-writer/java-common/default-jre: 필터 에러 방지 및 자바 환경 구축
+# pandoc: DOCX -> MD 변환용
+# fonts-nanum: 한글 깨짐 방지
 RUN apt-get update && apt-get install -y \
-    libreoffice \
+    libreoffice-writer \
+    libreoffice-java-common \
+    default-jre \
     pandoc \
     fonts-nanum \
     fonts-nanum-coding \
     python3 \
     python3-pip \
     tzdata \
+    unzip \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. 파이썬 의존성 설치 (Redis Streams 라이브러리)
-# Qwen3-Embedding 구동을 위한 ML 라이브러리 추가
-# 디스크 공간 부족(32GB) 및 CPU 환경을 고려하여 PyTorch CPU 전용 버전 설치
+# 4. 파이썬 의존성 설치
+# CPU 환경 최적화를 위한 PyTorch 및 ML 라이브러리
 RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip3 install --no-cache-dir \
     redis \
@@ -35,13 +36,15 @@ RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/w
     pyhwp \
     six
 
+# LibreOffice 프로필 생성을 위한 권한 우회 경로
+ENV HOME=/tmp
+
 # 5. 작업 디렉토리 설정 및 소스 복사
 WORKDIR /app
 COPY . /app
 
-# 6. 공유 폴더 권한 보장 및 생성 (엔진과 파일 공유용)
+# 6. 공유 폴더 권한 보장 (Java와 파일 공유용)
 RUN mkdir -p /app/shared-docs && chmod 777 /app/shared-docs
 
 # 7. 워커 스크립트 실행
-# -u 옵션은 도커 로그 출력을 실시간으로 확인하기 위함입니다.
 CMD ["python3", "-u", "worker.py"]

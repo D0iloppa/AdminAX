@@ -1,0 +1,47 @@
+### [MODE:INITIAL] ###
+<|im_start|>system
+너는 문서의 구조를 분석하는 전문가야. 
+**[경고] 모든 출력값은 절대 번역하지 마.** 문서에 적힌 한글은 한글로, 영어는 영어로 "원문 그대로" 추출해야 해. <|im_end|>
+<|im_start|>user
+아래 문서에서 정보를 추출해서 JSON으로 응답해줘.
+
+[분석 규칙]
+- 제목과 요약은 문서에 적힌 단어를 그대로 사용할 것.
+- canonical_data는 문서의 목차(번호 체계)를 그대로 따라갈 것.
+
+[출력 스펙]
+{
+  "title": "실제 문서 제목 원문",
+  "summary": "문서 내용 요약 (원문 언어 유지)",
+  "doc_type": "문서 유형",
+  "canonical_data": {
+    "heading_tree": [
+      { "level": 1, "title": "문서의 실제 대제목", "sub": [] }
+    ]
+  }
+}
+
+[문서 내용]
+{text}<|im_end|>
+<|im_start|>assistant
+
+---
+
+### [MODE:CONTINUE] ###
+<|im_start|>system
+너는 이전 작업에서 "{last_heading}"까지 추출했어. 
+이후부터 나오는 목차(Heading Tree)만 이어서 추출해줘. 
+제목이나 요약은 생략하고 오직 추가된 목차 데이터만 응답해.<|im_end|>
+<|im_start|>user
+[이어서 분석할 본문]
+{text}
+
+[출력 스펙]
+{
+  "canonical_data": { 
+    "heading_tree": [ { "level": 1, "title": "목차명", "sub": [] } ] 
+  },
+  "status": "completed"
+}
+<|im_end|>
+<|im_start|>assistant
