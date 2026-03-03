@@ -23,6 +23,7 @@ import com.adminax.engine.component.SseEmitters;
 import com.adminax.engine.entity.Document;
 import com.adminax.engine.enums.DocumentStatus;
 import com.adminax.engine.parser.DocParser;
+import com.adminax.engine.service.NormalizationService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,39 +48,46 @@ public class NormalizationResultListener implements StreamListener<String, MapRe
     
     @Value("${adminax.redis.result-stream-key}")
     private String expectedStreamKey;
+    
+    private final NormalizationService normalizationService;
 
     @Override
     public void onMessage(MapRecord<String, String, String> message) {
-    	
         var data = message.getValue();
         
         String taskId = data.get("task_id");
         String docUuid = data.get("doc_uuid");
-        String status = data.get("status"); // 현재 상태 (START, STEP1, COMPLETED 등)
+        String status = data.get("status");
+        String jsonPath = data.get("json_path");
+        String errorMsg = data.get("error_msg");
 
-        // 1. 현재 문서의 상태를 실시간으로 클라이언트에 전송
+        log.info("[<-] Redis Message 수신: Doc[{}] Status[{}]", docUuid, status);
+
+        // 1. 현재 문서의 상세 진행 상태를 SSE로 전송 (Enum 사용)
         sseEmitters.send(taskId, DocumentStatus.DOC_PROGRESS.getValue(), Map.of(
             "docUuid", docUuid,
-            "status", status
+            "status", status,
+            "errorMsg", errorMsg != null ? errorMsg : ""
         ));
-        
-        String completeLabel = DocumentStatus.COMPLETED.getValue();
-        String failedLabel = DocumentStatus.FAILED.getValue();
 
-        if (completeLabel.equals(status) || failedLabel.equals(status)) {
+        // 2. 최종 상태 판단 (Enum 비교)
+        if (DocumentStatus.COMPLETED.getValue().equals(status)) {
+            // 성공: 파일 읽기 및 DB 업데이트
+            normalizationService.updateDocumentToSuccess(docUuid, jsonPath);
+            handleDocumentCompletion(taskId, docUuid);
+        } else if (DocumentStatus.FAILED.getValue().equals(status)) {
+            // 실패: 에러 상태 기록 및 폴백 준비
+            normalizationService.updateDocumentToFail(docUuid, errorMsg);
             handleDocumentCompletion(taskId, docUuid);
         }
+        // 그 외 PROCESSING, CONVERTED, ANALYZING은 SSE 알림만 가고 DB 업데이트는 생략함
     }
-    
+
     private void handleDocumentCompletion(String taskId, String docUuid) {
-    	
         String completedSetKey = "task:completed_docs:" + taskId;
-        
         redisTemplate.opsForSet().add(completedSetKey, docUuid);
         
         Long currentCount = redisTemplate.opsForSet().size(completedSetKey);
-        
-        
         String totalValue = redisTemplate.opsForValue().get("task:total:" + taskId);
         
         if (totalValue == null) {
@@ -89,7 +97,6 @@ public class NormalizationResultListener implements StreamListener<String, MapRe
         
         int totalCount = Integer.parseInt(totalValue);
         
-        // 전체 완료 알림
         if (currentCount != null && currentCount >= totalCount) {
             sseEmitters.send(taskId, "TASK_FINISHED", Map.of(
                 "taskId", taskId,

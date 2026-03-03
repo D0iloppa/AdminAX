@@ -24,6 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.adminax.engine.component.SseEmitters;
 import com.adminax.engine.context.NormCtxt;
 import com.adminax.engine.entity.Document;
@@ -55,6 +59,7 @@ public class NormalizationService {
 	
 	private final FileInitializeService fileInitializeService;
 	
+	private final ObjectMapper objectMapper;
 	// 1. 상단에 선언된 의존성들
     private final RedisTemplate<String, String> redisTemplate;
   
@@ -178,7 +183,60 @@ public class NormalizationService {
 	public SseEmitter docSubscribe(String taskId) {
 		return sseEmitters.subscribe(taskId);
 	}
-	
+
+	@Transactional
+    public void updateDocumentToSuccess(String docUuid, String jsonPath) {
+        // 1. 엔티티 조회
+        Document doc = documentRepository.findByDocUuid(docUuid)
+            .orElseThrow(() -> new RuntimeException("해당 UUID의 문서를 찾을 수 없습니다: " + docUuid));
+
+        try {
+            // 2. Python이 생성한 JSON 파일 물리적 로드
+            File jsonFile = new File(jsonPath);
+            JsonNode root = objectMapper.readTree(jsonFile);
+
+            // 3. 필드 매핑 및 업데이트 (Entity 필드명 준수)
+            // AI가 추출한 제목 (있을 경우에만 업데이트)
+            String aiTitle = root.path("title").asText();
+            if (aiTitle != null && !aiTitle.isBlank() && !"No Title".equals(aiTitle)) {
+                doc.setDocName(aiTitle);
+            }
+
+            // AI가 정제한 요약
+            doc.setSummary(root.path("summary").asText(""));
+
+            // 원본 텍스트 (full_content -> content)
+            doc.setContent(root.path("full_content").asText(""));
+
+            // 상태 변경 (Enum 사용)
+            doc.setStatus(DocumentStatus.COMPLETED.getValue());
+
+            // 전체 JSON 구조를 Map으로 변환하여 jsonb 필드에 저장
+            // canonical_data 혹은 전체 root를 저장할 수 있습니다.
+            Map<String, Object> jsonMap = objectMapper.convertValue(root, new TypeReference<>() {});
+            doc.setCanonicalJson(jsonMap);
+
+            // 4. 저장
+            documentRepository.save(doc);
+            log.info("[✓] JPA Entity 업데이트 완료 (ID: {}, Name: {})", doc.getDocId(), doc.getDocName());
+
+        } catch (IOException e) {
+            log.error("[-] JSON 파일 매핑 실패 (Path: {}): {}", jsonPath, e.getMessage());
+            updateDocumentToFail(docUuid, "JSON Mapping Error: " + e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void updateDocumentToFail(String docUuid, String errorMsg) {
+        documentRepository.findByDocUuid(docUuid).ifPresent(doc -> {
+            doc.setStatus(DocumentStatus.FAILED.getValue());
+            // 실패 사유를 summary에 남겨두면 나중에 디버깅하기 편합니다.
+            doc.setSummary("Error: " + errorMsg); 
+            documentRepository.save(doc);
+            log.warn("[!] 문서 처리 실패 기록 완료: {}", docUuid);
+        });
+    }
+
 	
 	
 	
