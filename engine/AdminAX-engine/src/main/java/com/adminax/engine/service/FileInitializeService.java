@@ -120,6 +120,7 @@ public class FileInitializeService {
         document.setFolder(folder);
         document.setOwner(owner);
         document.setContent(""); 
+        document.setStatus(DocumentStatus.PENDING.getValue());
 
         // 저장
         Document savedDoc = documentRepository.save(document);

@@ -8,7 +8,8 @@ package com.adminax.engine.enums;
  */
 public enum DocumentStatus {
 	
-    PROCESSING("PROCESSING"),
+	PENDING("PENDING"),
+	PROCESSING("PROCESSING"),
     COMPLETED("COMPLETED"),
     FAILED("FAILED"), 
     DOC_PROGRESS("FAILED");
