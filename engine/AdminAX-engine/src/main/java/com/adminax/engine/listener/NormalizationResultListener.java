@@ -9,11 +9,19 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import com.adminax.engine.component.SseEmitters;
+import com.adminax.engine.entity.Document;
+import com.adminax.engine.enums.DocumentStatus;
 import com.adminax.engine.parser.DocParser;
 
 import lombok.RequiredArgsConstructor;
@@ -27,51 +35,74 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class NormalizationResultListener implements StreamListener<String, MapRecord<String, String, String>> {
 
+	
+	// 컴포넌트
+	private final SseEmitters sseEmitters;
+	
+    private final RedisTemplate<String, String> redisTemplate;
+
+	
     private final DocParser docParser; 
     // private final DocMapper docMapper; 
+    
+    @Value("${adminax.redis.result-stream-key}")
+    private String expectedStreamKey;
 
     @Override
     public void onMessage(MapRecord<String, String, String> message) {
-        // 1. 파이썬 워커가 보낸 데이터 추출 (md_path, doc_uuid)
+    	
         var data = message.getValue();
-        String mdPath = data.get("md_path");
+        
+        String taskId = data.get("task_id");
         String docUuid = data.get("doc_uuid");
-        String status = data.get("status");
+        String status = data.get("status"); // 현재 상태 (START, STEP1, COMPLETED 등)
 
-        log.info("[*] 변환 결과 수신 - Status: {}, UUID: {}", status, docUuid);
-        log.info("[*] MD 파일 경로: {}", mdPath);
+        // 1. 현재 문서의 상태를 실시간으로 클라이언트에 전송
+        sseEmitters.send(taskId, DocumentStatus.DOC_PROGRESS.getValue(), Map.of(
+            "docUuid", docUuid,
+            "status", status
+        ));
+        
+        String completeLabel = DocumentStatus.COMPLETED.getValue();
+        String failedLabel = DocumentStatus.FAILED.getValue();
 
-        if (!"SUCCESS".equals(status)) {
-            log.error("[!] 워커에서 변환 실패 보고됨: {}", docUuid);
-            return;
-        }
-
-        try {
-            // 2. MD 파일 읽기 (NIO 활용)
-            Path path = Paths.get(mdPath);
-            if (Files.exists(path)) {
-                // 파일 내용을 문자열로 읽어옴
-                String markdownContent = Files.readString(path, StandardCharsets.UTF_8);
-                
-                // 확인을 위해 내용 일부 출력 (앞 100자)
-                log.info("[+] MD 파일 읽기 성공! 내용 요약: {}...", 
-                    markdownContent.substring(0, Math.min(markdownContent.length(), 100)).replace("\n", " "));
-
-                // 3. 향후 구현: MD -> Canonical JSON 변환 로직이 들어갈 자리
-                // var canonicalJson = docParser.parseMarkdown(markdownContent);
-                
-                // 4. DB 최종 업데이트 (성공 처리)
-                // docMapper.updateFinalResult(docUuid, canonicalJson, "SUCCESS");
-                
-                log.info("[+] 최종 정규화 완료 및 DB 반영 대기 중: {}", docUuid);
-            } else {
-                log.error("[!] 파일이 공유 볼륨에 존재하지 않습니다: {}", mdPath);
-            }
-
-        } catch (IOException e) {
-            log.error("[!] MD 파일 읽기 중 에러 발생: {}", mdPath, e);
-        } catch (Exception e) {
-            log.error("[!] 리스너 로직 처리 중 예외 발생", e);
+        if (completeLabel.equals(status) || failedLabel.equals(status)) {
+            handleDocumentCompletion(taskId, docUuid);
         }
     }
+    
+    private void handleDocumentCompletion(String taskId, String docUuid) {
+    	
+        String completedSetKey = "task:completed_docs:" + taskId;
+        
+        redisTemplate.opsForSet().add(completedSetKey, docUuid);
+        
+        Long currentCount = redisTemplate.opsForSet().size(completedSetKey);
+        
+        
+        String totalValue = redisTemplate.opsForValue().get("task:total:" + taskId);
+        
+        if (totalValue == null) {
+            log.warn("[-] Task {}의 전체 개수 정보를 찾을 수 없습니다.", taskId);
+            return;
+        }
+        
+        int totalCount = Integer.parseInt(totalValue);
+        
+        // 전체 완료 알림
+        if (currentCount != null && currentCount >= totalCount) {
+            sseEmitters.send(taskId, "TASK_FINISHED", Map.of(
+                "taskId", taskId,
+                "message", "모든 문서의 정규화 처리가 끝났습니다."
+            ));
+            sseEmitters.complete(taskId);
+            
+            redisTemplate.expire(completedSetKey, Duration.ofMinutes(5));
+            redisTemplate.expire("task:total:" + taskId, Duration.ofMinutes(5));
+        }
+    }
+    
+    
+    
+    
 }

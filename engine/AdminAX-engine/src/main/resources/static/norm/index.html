@@ -22,6 +22,9 @@
                 
                 <button class="btn btn-primary w-100" onclick="uploadFiles()">🚀 정규화 시작</button>
             </div>
+            <div class="progress mt-3" style="height: 25px; display: none;" id="progressWrapper">
+			    <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;">0%</div>
+			</div>
             <div class="card-footer">
                 <h6>처리 결과:</h6>
                 <pre id="output" class="bg-dark text-success p-3 rounded" style="min-height: 100px;">대기 중...</pre>

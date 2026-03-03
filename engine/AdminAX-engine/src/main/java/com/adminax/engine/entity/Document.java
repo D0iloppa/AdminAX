@@ -34,6 +34,9 @@ public class Document {
 
     @Column(nullable = false, length = 36)
     private String docUuid; 
+    
+    private String status;
+    private String taskId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "folder_id")

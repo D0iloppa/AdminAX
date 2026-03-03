@@ -24,7 +24,7 @@ import com.adminax.engine.entity.User;
 import com.adminax.engine.repository.DocumentRepository;
 import com.adminax.engine.repository.FolderRepository;
 import com.adminax.engine.repository.UserRepository;
-import com.adminax.engine.service.NormalizationService.DocumentStatus;
+import com.adminax.engine.enums.DocumentStatus;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +61,7 @@ public class FileInitializeService {
         boolean isSuccess = false;
 
         try {
+        	String task_id = ctxt.getTask_id();
             String docUuid = ctxt.getDoc_uuid();
             String originalFilename = multipartFile.getOriginalFilename();
 
@@ -72,7 +73,7 @@ public class FileInitializeService {
             insertDocumentTask(ctxt);
 
             // 3. 비동기/Redis 전달 (normalize 호출) [cite: 2026-02-25]
-            normalize(targetFile, originalFilename, docUuid); 
+            normalize(targetFile, ctxt); 
 
             isSuccess = true;
             log.info("[✓] 파일 처리 완료: {}", originalFilename);
@@ -98,7 +99,6 @@ public class FileInitializeService {
      * DB 인서트 로직 (initTask 트랜잭션에 합류)
      */
     private void insertDocumentTask(NormCtxt ctxt) {
-    	
 		
 		/*
 	    Folder folder = folderRepository.findById(ctxt.getFolderId())
@@ -113,6 +113,7 @@ public class FileInitializeService {
         User owner = userRepository.getReferenceById(1L);
 
         Document document = new Document();
+        document.setTaskId(ctxt.getTask_id());
         document.setDocUuid(ctxt.getDoc_uuid());
         document.setDocName(ctxt.getName());
         document.setDocPath(ctxt.getDoc_path());
@@ -120,8 +121,13 @@ public class FileInitializeService {
         document.setOwner(owner);
         document.setContent(""); 
 
-        documentRepository.save(document);
-        log.info("[+] DB 기록 완료 - docUuid: {}", document.getDocUuid());
+        // 저장
+        Document savedDoc = documentRepository.save(document);
+        // doc_id 추출
+        ctxt.setDoc_id(savedDoc.getDocId());
+        
+        
+        log.info("[+] DB 기록 완료 - docUuid: {}, docId: {}", savedDoc.getDocUuid(), savedDoc.getDocId());
     }
 
     /**
@@ -159,17 +165,26 @@ public class FileInitializeService {
 		return targetFile;
     }
     
-    private NormCtxt normalize(File file, String orgName, String docUuid) {
-	    log.info("[*] 비동기 정규화 요청 시작 - 파일: {}, UUID: {}", file.getName(), docUuid);
+    private NormCtxt normalize(File file, NormCtxt ctxt) {
+    	
+    	String task_id = ctxt.getTask_id();
+    	String file_name = file.getName();
+    	String docUuid = ctxt.getDoc_uuid();
+    	Long docId = ctxt.getDoc_id();
+    	
+    	
+	    log.info("[* TASK:{}] 비동기 정규화 요청 시작 - 파일: {}, UUID: {}", task_id, file_name, docUuid);
 
 	    try {
 	    	
 	        // Redis로 보낼 메시지 구성 (Payload)
 	    	
 	        Map<String, String> payload = Map.of(
-	            "file_path", file.getAbsolutePath(), // 공유 볼륨 내의 절대 경로
+	            "file_path", file.getAbsolutePath(),
+	            "doc_id", String.valueOf(docId),
 	            "doc_uuid", docUuid,
-	            "filename", file.getName()
+	            "task_id", task_id,
+	            "filename", file_name
 	        );
 
 	        // Redis Stream에 메시지 추가 (XADD)
@@ -179,11 +194,7 @@ public class FileInitializeService {
                     .ofMap(payload)
             );
 	        
-	        NormCtxt result = new NormCtxt();
-	        result.setDoc_uuid(docUuid);
-	        
-
-	        return result; // 결과 대신 추적용 UUID 반환
+	        return ctxt;
 
 	    } catch (Exception e) {
 	        log.error("[!] Redis 메시지 발행 중 에러 발생: {}", file.getName(), e);

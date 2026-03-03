@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import com.adminax.engine.context.NormCtxt;
 import com.adminax.engine.entity.Document;
 import com.adminax.engine.entity.Folder;
 import com.adminax.engine.entity.User;
+import com.adminax.engine.enums.DocumentStatus;
 import com.adminax.engine.parser.DocParser;
 import com.adminax.engine.repository.DevConfigRepository;
 import com.adminax.engine.repository.DocumentRepository;
@@ -44,22 +46,6 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class NormalizationService {
-	
-	public enum DocumentStatus {
-	    PROCESSING("PROCESSING"),
-	    COMPLETED("COMPLETED"),
-	    FAILED("FAILED");
-
-	    private final String value;
-
-	    DocumentStatus(String value) {
-	        this.value = value;
-	    }
-
-	    public String getValue() {
-	        return value;
-	    }
-	}
 	
 	private final FolderRepository folderRepository;
 	private final UserRepository userRepository;
@@ -96,6 +82,11 @@ public class NormalizationService {
 		// 큐잉 등록
 		String task_id = UUID.randomUUID().toString();
 		
+		
+		// redis task 등록
+		//taskRegistration(files, task_id);
+		
+		
 		List<NormCtxt> list = new ArrayList<>();
 		
 		for(MultipartFile file: files) {
@@ -103,8 +94,6 @@ public class NormalizationService {
 			String doc_uuid = UUID.randomUUID().toString();
 			String fileName = file.getOriginalFilename();
 			
-			
-			//NormCtxt ctxt = normalize(file);
 			
 			NormCtxt ctxt = new NormCtxt();
 			ctxt.setTask_id(task_id);
@@ -116,16 +105,62 @@ public class NormalizationService {
 				fileInitializeService.initTask(ctxt, file);
 			}catch(Exception e) {
 				log.error("[-] 파일 [{}] 처리 실패: {}", file.getOriginalFilename(), e.getMessage());
+				ctxt.setStatus(DocumentStatus.FAILED.getValue());
 			}
 			
-			// 리스트 추가
+			
 			list.add(ctxt);
 			
 		}
 		
+		taskRegistration(task_id, list);
+		
+		
 		context.put("task_id", task_id);
 		context.put("files", list);
 		
+	}
+
+	/**
+	 * 1. 메소드명 : taskRegistration
+	 * 2. 작성일: 2026. 2. 26.
+	 * 3. 작성자: kdi39
+	 * 4. 설명: 
+	 * 5. 수정일: kdi39
+	 * @param task_id
+	 * @param doc_list
+	 */
+	private void taskRegistration(String task_id, List<NormCtxt> doc_list) {
+	
+		
+		String allDocsKey = "task:all_docs:" + task_id; // 전체 관리용 Set
+		String totalKey = "task:total:" + task_id;
+	    String failKey = "task:fail:" + task_id;
+	    
+	    // 1. 목표치 설정 (비교용)
+	    redisTemplate.opsForValue().set(
+    		totalKey, 
+    		String.valueOf(doc_list.size()), 
+    		Duration.ofHours(24)
+	    );
+
+	    // 2. 전체 UUID 목록 관리
+	    for (NormCtxt ctxt : doc_list) {
+	    	
+	        redisTemplate.opsForSet()
+	        	.add(allDocsKey, ctxt.getDoc_uuid());
+	        
+	        String er = DocumentStatus.FAILED.getValue();
+	        // 3. 루프 중 이미 에러가 난 항목 처리
+	        if (er.equals(ctxt.getStatus())) {
+	            redisTemplate.opsForSet()
+	            	.add(failKey, ctxt.getDoc_uuid());
+	        }
+	    }
+	    
+	    // 만료 시간 일괄 설정
+	    redisTemplate.expire(allDocsKey, Duration.ofHours(24));
+	    redisTemplate.expire(failKey, Duration.ofHours(24));
 	}
 	
 	

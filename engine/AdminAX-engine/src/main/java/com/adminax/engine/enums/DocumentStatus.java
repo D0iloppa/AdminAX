@@ -1,0 +1,25 @@
+/**
+ * 
+ */
+package com.adminax.engine.enums;
+
+/**
+ * 
+ */
+public enum DocumentStatus {
+	
+    PROCESSING("PROCESSING"),
+    COMPLETED("COMPLETED"),
+    FAILED("FAILED"), 
+    DOC_PROGRESS("FAILED");
+
+    private final String value;
+
+    DocumentStatus(String value) {
+        this.value = value;
+    }
+
+    public String getValue() {
+        return value;
+    }
+}
