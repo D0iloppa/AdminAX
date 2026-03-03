@@ -12,7 +12,7 @@ public enum DocumentStatus {
 	PROCESSING("PROCESSING"),
     COMPLETED("COMPLETED"),
     FAILED("FAILED"), 
-    DOC_PROGRESS("FAILED");
+    DOC_PROGRESS("DOC_PROGRESS");
 
     private final String value;
 
