@@ -126,6 +126,32 @@ services:
           memory: ${CONVERTER_MEM_LIMIT}
     logging: *default-logging
 
+  # 5.1 Chat Worker (AI Inference for Chat)
+  chat-worker:
+    build:
+      context: ./converter
+      dockerfile: Dockerfile
+    container_name: adminax-chat-worker
+    restart: unless-stopped
+    command: python chat_worker.py
+    environment:
+      - TZ=${TZ}
+      - REDIS_HOST=adminax-redis
+      - HF_HOME=/app/model_cache
+      - MODEL_NAME=${MODEL_NAME}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS}
+      - AI_TEMPERATURE=${AI_TEMPERATURE}
+    volumes:
+      - ./converter:/app
+      - ./data/huggingface:/app/model_cache
+    depends_on:
+      - adminax-redis
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    logging: *default-logging
+
   # ---------------------------------------------------------
   # [NEW] 6. Administrator UI (Spring Boot)
   # ---------------------------------------------------------
