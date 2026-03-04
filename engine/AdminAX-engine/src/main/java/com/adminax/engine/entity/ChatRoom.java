@@ -4,6 +4,9 @@
 package com.adminax.engine.entity;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -20,6 +23,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -29,7 +33,8 @@ import lombok.Setter;
  */
 @Entity
 @Table(name = "adminax_chat_room")
-@Getter @Setter @NoArgsConstructor
+@Getter @Setter 
+@Builder
 public class ChatRoom {
 
     @Id
@@ -37,7 +42,7 @@ public class ChatRoom {
     private Long roomId;
 
     @Column(nullable = false, updatable = false)
-    private UUID roomUuid = UUID.randomUUID(); // DB 기본값과 별개로 Java에서도 초기화
+    private String roomUuid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
