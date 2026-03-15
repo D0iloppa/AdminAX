@@ -34,7 +34,8 @@ public class ChatController {
         @SuppressWarnings("unchecked")
         List<String> taskIds = (List<String>) payload.get("task_ids");
 
-        SseEmitter emitter = new SseEmitter(120_000L); // 2 minutes timeout
+        // SseEmitter emitter = new SseEmitter(120_000L); // 2 minutes timeout
+        SseEmitter emitter = new SseEmitter(600_000L); //
 
         // Async processing
         chatService.processChatMessageAsync(emitter, sessionId, message, taskIds);

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -38,7 +39,16 @@ public class ChatService {
 
     @Async
     public void processChatMessageAsync(SseEmitter emitter, String sessionId, String message, List<String> taskIds) {
+    	
+        // 클라이언트 연결 상태를 스레드 안전하게 관리하기 위한 플래그
+        AtomicBoolean isConnected = new AtomicBoolean(true);
+        emitter.onCompletion(() -> isConnected.set(false));
+        emitter.onTimeout(() -> isConnected.set(false));
+        emitter.onError(e -> isConnected.set(false));
+    	
+    	
         try {
+        	/*
             log.info("[CHAT] Processing message for session: {}", sessionId);
 
             if (taskIds != null && !taskIds.isEmpty()) {
@@ -55,6 +65,42 @@ public class ChatService {
 
             sendSseEvent(emitter, "COMPLETED", answer);
             emitter.complete();
+            */
+            
+            
+            
+            log.info("[CHAT] Processing message for session: {}", sessionId);
+            if (taskIds != null && !taskIds.isEmpty()) {
+                sendSseEvent(emitter, "WAITING_TASKS", "지식 재료 분석 대기 중...");
+                // isConnected 플래그 전달
+                waitForTasks(taskIds, isConnected);
+                // 연결이 끊겼다면 중간에 즉시 종료
+                if (!isConnected.get()) {
+                    log.info("[CHAT] Client disconnected during WAIT_TASKS. Aborting.");
+                    return; 
+                }
+            }
+            List<Map<String, Object>> contexts = gatherDocumentContexts(taskIds);
+            
+            sendSseEvent(emitter, "GENERATING", "답변 생성 중...");
+            String msgId = pushToPythonWorker(sessionId, message, contexts);
+            
+            // isConnected 플래그 추가 전달
+            String answer = waitForPythonResponse(msgId, sessionId, isConnected);
+            
+            // 파이썬 워커 대기 도중 연결이 끊겼다면 중단
+            if (!isConnected.get()) {
+                log.info("[CHAT] Client disconnected during wait for LLM. Aborting.");
+                return;
+            }
+            sendSseEvent(emitter, "COMPLETED", answer);
+            emitter.complete();
+
+            
+            
+            
+            
+            
 
         } catch (Exception e) {
             log.error("Error processing chat message", e);
@@ -74,7 +120,7 @@ public class ChatService {
         }
     }
 
-    private void waitForTasks(List<String> taskIds) {
+    private void waitForTasks(List<String> taskIds, AtomicBoolean isConnected) {
         for (String taskId : taskIds) {
             String totalKey = "task:total:" + taskId;
             String allDocsKey = "task:all_docs:" + taskId;
@@ -82,7 +128,7 @@ public class ChatService {
             int attempts = 0;
             long maxAttempts = 600; 
             
-            while (attempts < maxAttempts) {
+            while (attempts < maxAttempts && isConnected.get()) {
                 String totalStr = redisTemplate.opsForValue().get(totalKey);
                 if (totalStr == null) {
                     try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
@@ -151,12 +197,12 @@ public class ChatService {
         return recordId != null ? recordId.getValue() : null;
     }
 
-    private String waitForPythonResponse(String correlatedMsgId, String expectedSession) {
+    private String waitForPythonResponse(String correlatedMsgId, String expectedSession, AtomicBoolean isConnected) { 
         log.info("Waiting for python response for msg_id: {}", correlatedMsgId);
         long start = System.currentTimeMillis();
         long timeoutMs = 60000;
 
-        while (System.currentTimeMillis() - start < timeoutMs) {
+        while (System.currentTimeMillis() - start < timeoutMs && isConnected.get()) {
             List<MapRecord<String, Object, Object>> entries = redisTemplate.opsForStream().read(
                 StreamReadOptions.empty().block(Duration.ofSeconds(2)).count(10),
                 StreamOffset.latest(CHAT_RESULT_STREAM)
@@ -176,7 +222,14 @@ public class ChatService {
                 }
             }
         }
-        log.warn("Timed out waiting for python chat response.");
-        return "죄송합니다, 문서 분석이나 생성 시간이 너무 오래걸립니다.";
+        
+        
+        if (!isConnected.get()) {
+            log.warn("Client disconnected while waiting for python chat response.");
+            return null;
+        } else {
+            log.warn("Timed out waiting for python chat response.");
+            return "죄송합니다, 문서 분석이나 생성 시간이 너무 오래걸립니다.";
+        }
     }
 }
