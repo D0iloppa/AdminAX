@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libreoffice-java-common \
     default-jre \
     pandoc \
+    poppler-utils \
     fonts-nanum \
     fonts-nanum-coding \
     python3 \
@@ -25,16 +26,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. 파이썬 의존성 설치
-# CPU 환경 최적화를 위한 PyTorch 및 ML 라이브러리
-RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip3 install --no-cache-dir \
+# CPU 환경 최적화를 위한 파이썬 의존성 설치
+RUN pip3 install --no-cache-dir \
     redis \
-    transformers \
-    sentence-transformers \
-    einops \
-    accelerate \
+    requests \
     pyhwp \
-    six
+    six \
+    pdfplumber
 
 # LibreOffice 프로필 생성을 위한 권한 우회 경로
 ENV HOME=/tmp
@@ -46,5 +44,9 @@ COPY . /app
 # 6. 공유 폴더 권한 보장 (Java와 파일 공유용)
 RUN mkdir -p /app/shared-docs && chmod 777 /app/shared-docs
 
-# 7. 워커 스크립트 실행
+# 7. pyhwp XSL 패치: 표 내용 추출 (<표> 플레이스홀더 → 실제 셀 텍스트)
+RUN cp /app/plaintext.xsl \
+    /usr/local/lib/python3.10/dist-packages/hwp5/xsl/plaintext.xsl
+
+# 8. 워커 스크립트 실행
 CMD ["python3", "-u", "worker.py"]

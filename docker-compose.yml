@@ -55,7 +55,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: ${REDIS_MEM_LIMIT}
     logging: *default-logging
 
   # Redis 모니터링 UI
@@ -69,8 +69,9 @@ services:
       - "8081:8081"
     depends_on:
       - adminax-redis
+    logging: *default-logging
 
-  # 4. Core Engine (Spring Boot - API 전용)
+  # 4. Core Engine (Spring Boot)
   core-engine:
     build:
       context: ./engine
@@ -99,7 +100,7 @@ services:
           memory: ${CORE_MEM_LIMIT}
     logging: *default-logging
 
-  # 5. Converter Worker (AI Extraction)
+  # 5. Converter Worker (비즈니스 로직 담당)
   converter-worker:
     build:
       context: ./converter
@@ -109,92 +110,124 @@ services:
     environment:
       - TZ=${TZ}
       - REDIS_HOST=adminax-redis
-      - HF_HOME=/app/model_cache
-      - MODEL_NAME=${MODEL_NAME}
-      - PROMPT_FILE=${PROMPT_FILE}
-      - AI_MAX_TOKENS=${AI_MAX_TOKENS}
-      - AI_TEMPERATURE=${AI_TEMPERATURE}
+      - ADAPTER_URL=http://adminax-adapter:8000/generate
     volumes:
       - ./converter:/app
       - ./shared-docs:/app/shared-docs
-      - ./data/huggingface:/app/model_cache
     depends_on:
       - adminax-redis
+      - adapter-layer
     deploy:
       resources:
         limits:
           memory: ${CONVERTER_MEM_LIMIT}
     logging: *default-logging
 
-  # 5.1 Chat Worker (AI Inference for Chat)
-  chat-worker:
+  # 5.1 FastAPI Adapter Layer (MoE 및 모델 중계)
+  adapter-layer:
     build:
-      context: ./converter
+      context: ./adapter
       dockerfile: Dockerfile
-    container_name: adminax-chat-worker
+    container_name: adminax-adapter
     restart: unless-stopped
-    command: python chat_worker.py
+    ports:
+      - "8000:8000"
     environment:
       - TZ=${TZ}
       - REDIS_HOST=adminax-redis
-      - HF_HOME=/app/model_cache
-      - MODEL_NAME=${MODEL_NAME}
-      - AI_MAX_TOKENS=${AI_MAX_TOKENS}
-      - AI_TEMPERATURE=${AI_TEMPERATURE}
-    volumes:
-      - ./converter:/app
-      - ./data/huggingface:/app/model_cache
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - OLLAMA_HOST=http://ollama:11434
+      - LOCAL_MODEL_SECRET=${LOCAL_MODEL_SECRET}
+      - HF_API_TOKEN=${HF_API_TOKEN}
     depends_on:
       - adminax-redis
+      - db
+      - ollama
+    volumes:
+      - ./adapter:/app
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: ${ADAPTER_MEM_LIMIT}
     logging: *default-logging
 
-  # ---------------------------------------------------------
-  # [NEW] 6. Administrator UI (Spring Boot)
-  # ---------------------------------------------------------
+  # 5.2 Ollama (Inference Engine)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: adminax-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: ${OLLAMA_MEM_LIMIT}
+        # 나중에 GPU를 장착하면 아래 주석을 해제.
+        # reservations:
+        #   devices:
+        #     - driver: "${OLLAMA_GPU_DRIVER}"
+        #       count: ${OLLAMA_GPU_COUNT:-0}
+        #       capabilities: [gpu]
+    logging: *default-logging
+
+  # Ollama 관리 및 테스트용 대시보드
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: adminax-open-webui
+    restart: "unless-stopped" # 서버 시작 시 자동 실행 안 함 (필요할 때만 수동으로 켬)
+    ports:
+      - "3000:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://adminax-ollama:11434
+      - WEBUI_SECRET_KEY=adminax_secret_key
+    volumes:
+      - ./data/webui:/app/backend/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    logging: *default-logging
+
+  # 6. Admin UI
   admin-ui:
     build:
       context: ./admin-ui
-      dockerfile: Dockerfile
     container_name: adminax-admin-ui
     restart: unless-stopped
     environment:
       - TZ=${TZ}
-      - SPRING_PROFILES_ACTIVE=dev 
-      - CORE_ENGINE_URL=http://adminax-core:8080
+      - SPRING_PROFILES_ACTIVE=prod
+      - CORE_ENGINE_URL=http://core-engine:8080
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${DB_NAME}
       - SPRING_DATASOURCE_USERNAME=${DB_USER}
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-    #volumes:
-    #  - ./admin-ui:/app
     depends_on:
       - core-engine
       - db
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: ${ADMIN_UI_MEM_LIMIT}
     logging: *default-logging
 
-  # ---------------------------------------------------------
-  # [NEW] 7. User Chat UI (Express.js)
-  # ---------------------------------------------------------
+  # 7. Chat UI
   chat-ui:
     build:
       context: ./chat-ui
-      dockerfile: Dockerfile
-      target: ${CHAT_UI_BUILD_TARGET:-production}
     container_name: adminax-chat-ui
-    volumes:
-      - ./chat-ui:/app             # 호스트 소스를 컨테이너 내부로 마운트
-      - /app/node_modules          # 호스트의 node_modules가 덮어쓰지 않도록 보호
+    restart: unless-stopped
     environment:
       - TZ=${TZ}
-      - NODE_ENV=${NODE_ENV:-production}
-      - ENGINE_URL=http://adminax-core:8080
+      - ENGINE_URL=http://core-engine:8080
+    depends_on:
+      - core-engine
+    deploy:
+      resources:
+        limits:
+          memory: ${CHAT_UI_MEM_LIMIT}
+    logging: *default-logging
 
   # 8. API Gateway (Nginx)
   gateway:
@@ -203,8 +236,6 @@ services:
     restart: unless-stopped
     ports:
       - "${GATEWAY_PORT}:80"
-    environment:
-      - TZ=${TZ}
     volumes:
       - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -214,9 +245,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: ${GATEWAY_MEM_LIMIT}
     logging: *default-logging
 
+# 최하단 네트워크 설정 (들여쓰기 주의)
 networks:
   default:
     name: adminax-network

@@ -124,7 +124,7 @@ function initNormalizationSSE(taskId) {
         }
 
         // 채팅창 내 파일 상태 UI 업데이트 (기존 로직 유지)
-        updateFileStatusInChat(data.docUuid, data.status);
+        updateFileStatusUI(data.docUuid, data.status);
     });
 
     // 2. 전체 작업 완료 (TASK_FINISHED) [cite: 2026-03-04]
@@ -168,8 +168,13 @@ async function sendMessage() {
         return;
     }
 
-    const text = chatInput.value.trim();
+    let text = chatInput.value.trim();
     if (!text && pendingTaskIds.size === 0) return;
+
+    // Handle the edge case where a user uploads a file but doesn't enter text
+    if (!text && pendingTaskIds.size > 0) {
+        text = "첨부된 문서들의 핵심 요약을 제공해줘.";
+    }
 
     if (!currentSessionUuid) {
         createNewSession(generateUUID(), "새로운 분석 대화", "private");
@@ -222,42 +227,56 @@ async function sendMessage() {
         const statusMsgEl = aiContentEl.querySelector('.status-msg');
         const textTarget = aiContentEl.querySelector('.typing-content');
 
-        while (!done) {
-            const { value, done: readerDone } = await reader.read();
-            done = readerDone;
-            if (value) {
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\\n');
-                buffer = lines.pop(); // 남아있는 불완전 데이터를 버퍼에 유지
+        try {
+            while (!done) {
+                const { value, done: readerDone } = await reader.read();
+                done = readerDone;
+                if (value) {
+                    buffer += decoder.decode(value, { stream: true });
+                    // SSE events are separated by double newlines (\n\n)
+                    const lines = buffer.split('\\n\\n');
+                    buffer = lines.pop(); // 남아있는 불완전 데이터를 버퍼에 유지
 
-                for (let line of lines) {
-                    if (line.startsWith('data:')) {
-                        try {
-                            const dataStr = line.replace('data:', '').trim();
-                            if (!dataStr) continue;
-                            const data = JSON.parse(dataStr);
+                    for (let line of lines) {
+                        if (line.trim().startsWith('data:')) {
+                            try {
+                                const dataStr = line.replace('data:', '').trim();
+                                if (!dataStr) continue;
+                                const data = JSON.parse(dataStr);
 
-                            if (data.status === 'WAITING_TASKS') {
-                                statusMsgEl.innerText = "지식 재료를 모으는 중입니다... (정규화 대기 중)";
-                            } else if (data.status === 'GENERATING') {
-                                statusMsgEl.innerText = "답변을 생성 중입니다...";
-                            } else if (data.status === 'COMPLETED') {
-                                if (loaderEl) loaderEl.remove();
-                                textTarget.classList.remove('hidden');
-                                textTarget.innerHTML = "";
-                                startTypingEffect(textTarget, data.answer || "분석 결과가 도착했습니다.");
-                            } else if (data.status === 'ERROR') {
-                                throw new Error(data.message || "알 수 없는 오류");
-                            }
-                        } catch (e) {
-                            if (e.message !== "Unexpected end of JSON input" && !e.message.includes("Unexpected token")) {
-                                console.error("SSE Parsing error", e, line);
-                            } else if (dataStr && e.message.includes("Unexpected token")) {
-                                // Ignore partial chunks if manual parsing fails
+                                if (data.status === 'WAITING_TASKS') {
+                                    statusMsgEl.innerText = "지식 재료를 모으는 중입니다... (정규화 대기 중)";
+                                } else if (data.status === 'GENERATING') {
+                                    statusMsgEl.innerText = "답변을 생성 중입니다...";
+                                } else if (data.status === 'COMPLETED') {
+                                    if (loaderEl) loaderEl.remove();
+                                    textTarget.classList.remove('hidden');
+                                    textTarget.innerHTML = "";
+                                    startTypingEffect(textTarget, data.answer || "분석 결과가 도착했습니다.");
+                                } else if (data.status === 'ERROR') {
+                                    throw new Error(data.message || "알 수 없는 오류");
+                                }
+                            } catch (e) {
+                                if (e.message !== "Unexpected end of JSON input" && !e.message.includes("Unexpected token")) {
+                                    console.error("SSE Parsing error", e, line);
+                                } else if (line.trim().startsWith('data:') && e.message.includes("Unexpected token")) {
+                                    // Ignore partial chunks if manual parsing fails
+                                }
                             }
                         }
                     }
                 }
+            }
+        } finally {
+            // Ensure UI is reset even if reading the stream fails or is interrupted
+            if (!document.querySelector('.typing-content')?.innerText && isGenerating && statusMsgEl?.innerText !== "답변을 생성 중입니다...") {
+                 // only stop if we didn't start typing the final response yet
+                 stopGeneration();
+            } else if (!isGenerating && window.currentTypingInterval === null) {
+                // do nothing if already stopped
+            } else {
+                 // Instead of calling stopGeneration immediately, let the typing effect finish
+                 // stopGeneration() will be called when startTypingEffect completes.
             }
         }
 
@@ -297,14 +316,20 @@ function renderFilePreview() {
     const preview = document.getElementById('file-list-preview');
     if (uploadedFiles.length > 0) {
         preview.classList.remove('hidden');
+        // display in a row above the input box as small pills
         preview.innerHTML = uploadedFiles.map((f, i) => `
-            < div id = "file-node-${i}" class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 text-[10px] text-blue-600 shadow-sm" >
-                <i class="fa-solid fa-file-lines"></i>
-                <span class="max-w-[100px] truncate font-bold">${f.name}</span>
-                <span class="status-badge text-[8px] opacity-70">준비 중</span>
-                <i class="fa-solid fa-xmark cursor-pointer hover:text-red-500" onclick="removeFile(${i})"></i>
-            </div >
+            <div id="file-node-${i}" class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200 text-[11px] text-blue-700 shadow-sm font-medium">
+                <i class="fa-solid fa-file-lines text-blue-500"></i>
+                <span class="max-w-[120px] truncate">${f.name}</span>
+                <span class="status-badge text-[9px] px-1.5 py-0.5 bg-blue-100 rounded-md text-blue-600">준비 중</span>
+                <button type="button" class="ml-1 text-slate-400 hover:text-red-500 transition-colors focus:outline-none" onclick="removeFile(${i})">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
             `).join('');
+    } else {
+        preview.classList.add('hidden');
+        preview.innerHTML = '';
     }
 }
 
@@ -336,7 +361,7 @@ function renderSidebar() {
         section.className = "mb-4";
         const header = document.createElement('div');
         header.className = "flex justify-between items-center mb-2 px-2";
-        header.innerHTML = `< span class="text-[10px] font-bold text-slate-400 tracking-widest" > ${title}</span > `;
+        header.innerHTML = `<span class="text-[10px] font-bold text-slate-400 tracking-widest">${title}</span>`;
         section.appendChild(header);
         folderList.forEach(item => section.appendChild(createFolderUI(item, areaType)));
         return section;
@@ -349,13 +374,13 @@ function createFolderUI(folder, areaType) {
     const div = document.createElement('div');
     div.className = "mb-1 group";
     div.innerHTML = `
-            < div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors" onclick = "toggleFolder('${folder.id}', '${areaType}')" >
+            <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors" onclick="toggleFolder('${folder.id}', '${areaType}')">
                 <div class="flex items-center gap-2 flex-1">
                     <i class="fa-solid ${folder.isOpen ? 'fa-chevron-down' : 'fa-chevron-right'} text-[9px] text-slate-300"></i>
                     <i class="fa-solid ${folder.isOpen ? 'fa-folder-open' : 'fa-folder'} text-yellow-500 text-sm"></i>
                     <span class="text-[11px] font-bold text-slate-600 uppercase">${folder.name}</span>
                 </div>
-        </div >
+            </div>
             <div class="space-y-0.5 mt-0.5 ${folder.isOpen ? '' : 'hidden'}">
                 ${folder.children.map(child => `
                 <div class="group/session ml-6 p-2 text-[11px] rounded-md hover:bg-slate-100 flex items-center justify-between text-slate-500 ${currentSessionUuid === child.uuid ? 'bg-slate-100 font-bold text-blue-600' : ''}" onclick="handleSessionClick('${child.uuid}', '${child.type}', '${child.name}')">
@@ -397,22 +422,22 @@ function loadSessionHistory(uuid, name, type) {
 
 function renderEmptyState() {
     chatWindow.innerHTML = `
-            < div class="h-full flex flex-col items-center justify-center text-slate-300 space-y-4" >
+        <div class="h-full flex flex-col items-center justify-center text-slate-300 space-y-4">
             <i class="fa-solid fa-robot text-6xl opacity-20"></i>
             <p class="text-sm font-medium">분석할 문서를 업로드하거나 대화를 시작하세요</p>
-        </div >
+        </div>
             `;
 }
 
 function renderMessage(role, text, isTyping = false) {
     if (chatWindow.querySelector('.fa-robot.text-6xl')) chatWindow.innerHTML = '';
     const msgDiv = document.createElement('div');
-    msgDiv.className = `flex max - w - 3xl mx - auto w - full gap - 4 ${role === 'user' ? 'flex-row-reverse' : 'flex-row'} mb - 8 animate - fade -in `;
+    msgDiv.className = `flex max-w-3xl mx-auto w-full gap-4 ${role === 'user' ? 'flex-row-reverse' : 'flex-row'} mb-8 animate-fade-in`;
 
     msgDiv.innerHTML = `
-            < div class="w-8 h-8 shrink-0 rounded-full ${role === 'ai' ? 'bg-blue-600' : 'bg-slate-200'} flex items-center justify-center text-white shadow-sm mt-1" >
-                <i class="fa-solid ${role === 'ai' ? 'fa-robot' : 'fa-user'} text-sm ${role === 'user' ? 'text-slate-600' : ''}"></i>
-        </div >
+        <div class="w-8 h-8 shrink-0 rounded-full ${role === 'ai' ? 'bg-blue-600' : 'bg-slate-200'} flex items-center justify-center text-white shadow-sm mt-1">
+            <i class="fa-solid ${role === 'ai' ? 'fa-robot' : 'fa-user'} text-sm ${role === 'user' ? 'text-slate-600' : ''}"></i>
+        </div>
             <div class="${role === 'user' ? 'max-w-[70%]' : 'flex-1'}">
                 <div class="${role === 'user' ? 'bg-slate-100 text-slate-800 px-5 py-3.5 rounded-2xl rounded-tr-sm' : 'prose prose-sm text-slate-700'}">
                     <div class="message-content leading-relaxed">${text}</div>
@@ -457,6 +482,16 @@ function setupGlobalEventListeners() {
     chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
     sendBtn.addEventListener('click', sendMessage);
     document.getElementById('sidebar-search').addEventListener('input', e => { searchTerm = e.target.value; renderSidebar(); });
+
+    // 첨부파일 선택 이벤트 바인딩
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            handleFileSelection(e.target.files);
+            // 업로드 후 input 초기화 (같은 파일 다시 선택 가능하도록)
+            fileInput.value = '';
+        });
+    }
 }
 
 function initGlobalDragAndDrop() {
